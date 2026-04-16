@@ -1166,6 +1166,26 @@ function getExcelFilePath(date) {
   return `/공동판매_auto/${year}/${month}월/${year}.${pad(month)}_공동판매.xlsx`;
 }
 
+async function dropboxPost(endpoint, body) {
+  // 표준 JSON POST — Authorization + Content-Type만 사용, CORS preflight 없음
+  const res = await fetch(`https://api.dropboxapi.com/2/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${app.settings.dropboxToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const status = res.status;
+    if (status === 401) throw new Error('Dropbox 토큰이 만료됐어요. 설정에서 토큰을 재발급해주세요.');
+    if (status === 409) throw new Error(`파일을 찾을 수 없어요.\n경로: ${body.path || ''}`);
+    throw new Error(err?.error_summary || `Dropbox 오류 (${status})`);
+  }
+  return res.json();
+}
+
 async function loadExcelFromDropbox() {
   const { dropboxToken } = app.settings;
   if (!dropboxToken) throw new Error('Dropbox 토큰이 없어요. 설정을 확인해주세요.');
@@ -1173,29 +1193,21 @@ async function loadExcelFromDropbox() {
   const path = getExcelFilePath();
   app.excelFilePath = path;
 
-  const res = await fetch('https://content.dropboxapi.com/2/files/download', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${dropboxToken}`,
-      'Dropbox-API-Arg': toAsciiJson({ path }),
-    }
-  });
+  // Step 1: 임시 다운로드 링크 발급 (커스텀 헤더 불필요한 표준 API)
+  const linkData = await dropboxPost('files/get_temporary_link', { path });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error_summary || `파일 다운로드 실패 (${res.status})\n경로: ${path}`);
-  }
+  // Step 2: 임시 링크로 파일 다운로드 (인증 헤더 없음 → CORS 문제 없음)
+  const fileRes = await fetch(linkData.link);
+  if (!fileRes.ok) throw new Error(`파일 다운로드 실패 (${fileRes.status})`);
 
-  const buffer = await res.arrayBuffer();
+  const buffer = await fileRes.arrayBuffer();
   const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true });
   app.excelWorkbook = wb;
 
-  // Build barcode map
-  const sheetName = '입고';
-  const sheet = wb.Sheets[sheetName];
+  const sheet = wb.Sheets['입고'];
   if (!sheet) throw new Error(`'입고' 시트를 찾을 수 없어요.`);
 
-  const bcCol = XLSX.utils.decode_col(app.settings.colBarcode || 'A');
+  const bcCol = XLSX.utils.decode_col(app.settings.colBarcode || 'G');
   const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
   const map = {};
   jsonData.forEach((row, i) => {
@@ -1209,20 +1221,27 @@ async function loadExcelFromDropbox() {
 async function uploadExcelToDropbox(workbook) {
   const { dropboxToken } = app.settings;
   const data = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  const uploadPath = app.excelFilePath || getExcelFilePath();
+
+  // 업로드는 Content-Type: octet-stream이므로 Dropbox-API-Arg 헤더 필요
+  // 단, 경로를 toAsciiJson으로 인코딩해서 한글 헤더 문제 방지
   const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${dropboxToken}`,
       'Content-Type': 'application/octet-stream',
       'Dropbox-API-Arg': toAsciiJson({
-        path: app.excelFilePath || getExcelFilePath(),
-        mode: 'overwrite', autorename: false, mute: false
+        path: uploadPath,
+        mode: 'overwrite',
+        autorename: false,
+        mute: false
       })
     },
     body: new Uint8Array(data)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error('Dropbox 토큰이 만료됐어요. 설정에서 토큰을 재발급해주세요.');
     throw new Error(err?.error_summary || `업로드 실패 (${res.status})`);
   }
 }
