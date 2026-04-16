@@ -889,6 +889,61 @@ function renderHomeDate() {
     `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} (${days[d.getDay()]})`;
 }
 
+async function homeSessionClick(sessionId, status) {
+  if (status === 'pending') {
+    // 대기 중 세션 → 이름 입력 후 참여해서 스캔
+    try {
+      const { data: session } = await app.supabase.from('move_sessions').select('*').eq('id', sessionId).single();
+      if (!session) { showToast('세션을 불러오지 못했어요', 'error'); return; }
+
+      showModal(
+        '세션 참여',
+        `${session.from_location} → ${session.to_location}\n\n참여할 담당자 이름을 입력하세요.`,
+        [{ label: '참여하기', class: 'btn-primary', fn: async () => {
+            const name = document.getElementById('join-name-input').value.trim();
+            if (!name) { showToast('이름을 입력해주세요', 'error'); return; }
+            closeModal();
+            app.scanUser = name;
+            app.scanFrom = session.from_location;
+            app.scanTo = session.to_location;
+            app.currentSession = session;
+            // 엑셀 로딩
+            const ldg = document.createElement('div');
+            ldg.className = 'loading'; ldg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;';
+            ldg.innerHTML = '<div class="spinner"></div><span style="color:#fff;margin-left:8px">엑셀 파일 불러오는 중...</span>';
+            document.body.appendChild(ldg);
+            try {
+              await loadExcelFromDropbox();
+              document.body.removeChild(ldg);
+              await enterScanningScreen();
+            } catch(e) {
+              document.body.removeChild(ldg);
+              showToast('엑셀 오류: ' + e.message, 'error');
+            }
+        }},
+        { label: '취소', class: 'btn-secondary', fn: closeModal }]
+      );
+      // 모달 안에 이름 입력 필드 동적으로 삽입
+      setTimeout(() => {
+        const desc = document.getElementById('modal-desc');
+        const input = document.createElement('input');
+        input.id = 'join-name-input';
+        input.className = 'form-input';
+        input.placeholder = '이름 입력';
+        input.style.marginTop = '12px';
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') document.querySelector('#modal-actions .btn-primary')?.click(); });
+        desc.appendChild(input);
+        setTimeout(() => input.focus(), 100);
+      }, 50);
+
+    } catch(e) { showToast('오류: ' + e.message, 'error'); }
+  } else {
+    // 완료된 세션 → 상세보기
+    viewSession(sessionId);
+  }
+}
+
+
 async function loadHomeSessions() {
   if (!app.supabase) return;
   const today = toDateStr(new Date());
@@ -903,7 +958,19 @@ async function loadHomeSessions() {
       el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">오늘 진행된 세션이 없어요</div></div>';
       return;
     }
-    el.innerHTML = data.map(s => sessionCardHTML(s, true)).join('');
+    el.innerHTML = data.map(s => `<div class="session-card" onclick="homeSessionClick('${s.id}','${s.status}')">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="session-route">${s.from_location} <span class="session-route-arrow">→</span> ${s.to_location}</div>
+      <span class="badge badge-${{pending:'pending',approved:'approved',correction:'correction'}[s.status]||'pending'} badge-dot">${{pending:'대기중',approved:'완료',correction:'정정완료'}[s.status]||s.status}</span>
+    </div>
+    <div class="session-meta">
+      <span style="font-family:var(--font-mono);font-size:11px">${s.session_items?.[0]?.count??'?'}벌</span>
+      <span class="session-meta-dot"></span>
+      <span>${formatTime(s.created_at)}</span>
+      <span class="session-meta-dot"></span>
+      <span>${s.created_by}</span>
+    </div>
+  </div>`).join('');
   } catch(e) { console.warn(e); }
 }
 
