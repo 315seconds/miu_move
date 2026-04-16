@@ -582,6 +582,9 @@ alter publication supabase_realtime add table session_items;</div>
       <button class="btn btn-ghost" style="margin-top:10px" onclick="startCorrection()">
         정정 이동으로 처리
       </button>
+      <button class="btn btn-danger" style="margin-top:10px" onclick="deleteSession()">
+        🗑 세션 삭제
+      </button>
     </div>
     <div id="detail-approved-info" style="display:none;background:var(--success-dim);border:1px solid rgba(61,186,111,.3);border-radius:var(--r);padding:14px 16px;font-size:13px;color:var(--success)"></div>
   </div>
@@ -1067,17 +1070,20 @@ async function loadHomeSessions() {
   if (!app.supabase) return;
   const today = toDateStr(new Date());
   try {
-    const { data } = await app.supabase
-      .from('move_sessions')
-      .select('*, session_items(count)')
-      .eq('session_date', today)
-      .order('created_at', { ascending: false });
+    // 대기중: 날짜 무관 전부 / 완료: 오늘 것만
+    const [pendingRes, approvedRes] = await Promise.all([
+      app.supabase.from('move_sessions').select('*, session_items(count)')
+        .eq('status', 'pending').order('created_at', { ascending: false }),
+      app.supabase.from('move_sessions').select('*, session_items(count)')
+        .neq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
+    ]);
+    const all = [...(pendingRes.data || []), ...(approvedRes.data || [])];
     const el = document.getElementById('home-sessions');
-    if (!data || data.length === 0) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">오늘 진행된 세션이 없어요</div></div>';
+    if (all.length === 0) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">진행 중인 세션이 없어요</div></div>';
       return;
     }
-    el.innerHTML = data.map(s => `<div class="session-card" onclick="homeSessionClick('${s.id}','${s.status}')">
+    el.innerHTML = all.map(s => `<div class="session-card" onclick="homeSessionClick('${s.id}','${s.status}')">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div class="session-route">${s.from_location} <span class="session-route-arrow">→</span> ${s.to_location}</div>
       <span class="badge badge-${{pending:'pending',approved:'approved',correction:'correction'}[s.status]||'pending'} badge-dot">${{pending:'대기중',approved:'완료',correction:'정정완료'}[s.status]||s.status}</span>
@@ -1085,7 +1091,7 @@ async function loadHomeSessions() {
     <div class="session-meta">
       <span style="font-family:var(--font-mono);font-size:11px">${s.session_items?.[0]?.count??'?'}벌</span>
       <span class="session-meta-dot"></span>
-      <span>${formatTime(s.created_at)}</span>
+      <span>${formatDate(s.session_date)} ${formatTime(s.created_at)}</span>
       <span class="session-meta-dot"></span>
       <span>${s.created_by}</span>
     </div>
@@ -1657,18 +1663,18 @@ async function loadManagerSessions() {
   const today = toDateStr(new Date());
   document.getElementById('mgr-list-sub').textContent = app.mgrApprover?.name ? `${app.mgrApprover.name} 로그인됨` : '';
   try {
-    const { data } = await app.supabase
-      .from('move_sessions')
-      .select('*, session_items(count)')
-      .eq('session_date', today)
-      .order('created_at', { ascending: false });
-
-    const pending  = (data||[]).filter(s => s.status === 'pending');
-    const approved = (data||[]).filter(s => s.status !== 'pending');
+    // 대기중: 날짜 무관 / 완료: 오늘 것만
+    const [pendingRes, approvedRes] = await Promise.all([
+      app.supabase.from('move_sessions').select('*, session_items(count)')
+        .eq('status', 'pending').order('created_at', { ascending: false }),
+      app.supabase.from('move_sessions').select('*, session_items(count)')
+        .neq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
+    ]);
+    const pending  = pendingRes.data  || [];
+    const approved = approvedRes.data || [];
 
     const pendingEl  = document.getElementById('mgr-pending-list');
     const approvedEl = document.getElementById('mgr-approved-list');
-
     pendingEl.innerHTML  = pending.length  ? pending.map(s => sessionCardHTML(s, true)).join('') : '<div class="empty" style="padding:20px"><div class="empty-text">대기 중인 세션이 없어요</div></div>';
     approvedEl.innerHTML = approved.length ? approved.map(s => sessionCardHTML(s, true)).join('') : '<div class="empty" style="padding:20px"><div class="empty-text">오늘 완료된 세션이 없어요</div></div>';
   } catch(e) { console.warn(e); }
@@ -1750,6 +1756,28 @@ function renderSessionDetail(session, items) {
     document.getElementById('detail-approved-info').textContent =
       `✓ ${session.approved_by}이(가) ${formatTime(session.approved_at)}에 승인 완료`;
   }
+}
+
+async function deleteSession() {
+  if (!app.selectedSession || !app.mgrApprover) return;
+  const s = app.selectedSession;
+  showModal(
+    '세션 삭제',
+    `${s.from_location} → ${s.to_location} 세션을 삭제할까요?\n\n스캔된 바코드 ${s.id ? '전체' : ''}가 함께 삭제되며 복구할 수 없어요.`,
+    [
+      { label: '삭제', class: 'btn-danger', fn: async () => {
+        closeModal();
+        try {
+          // session_items 먼저 삭제 후 세션 삭제
+          await app.supabase.from('session_items').delete().eq('session_id', s.id);
+          await app.supabase.from('move_sessions').delete().eq('id', s.id);
+          showToast('세션이 삭제됐어요', 'success');
+          showScreen('s-manager-list');
+        } catch(e) { showToast('삭제 오류: ' + e.message, 'error'); }
+      }},
+      { label: '취소', class: 'btn-secondary', fn: closeModal }
+    ]
+  );
 }
 
 function startApprove() {
