@@ -769,6 +769,7 @@ const app = {
   excelBarcodeMap: null, // {barcode: rowIndex}
   excelFilePath: '',
   realtimeSub: null,
+  homeRealtimeSub: null,
   scannedItems: [],       // local list for current scanner
 
   // manager flow
@@ -992,7 +993,17 @@ function goBack() {
 }
 
 function onScreenEnter(id) {
-  if (id === 's-home') { loadHomeSessions(); app.adminAuthed = false; }
+  if (id === 's-home') {
+    app.adminAuthed = false;
+    loadHomeSessions();
+    subscribeHomeRealtime();
+  } else {
+    // 홈 떠날 때 구독 해제
+    if (app.homeRealtimeSub) {
+      app.supabase?.removeChannel(app.homeRealtimeSub);
+      app.homeRealtimeSub = null;
+    }
+  }
   if (id === 's-scan-info') initScanInfo();
   if (id === 's-manager-auth') initManagerAuth();
   if (id === 's-manager-list') loadManagerSessions();
@@ -1064,6 +1075,19 @@ async function homeSessionClick(sessionId, status) {
   }
 }
 
+
+function subscribeHomeRealtime() {
+  if (!app.supabase) return;
+  // 이미 구독 중이면 재구독 안 함
+  if (app.homeRealtimeSub) return;
+  app.homeRealtimeSub = app.supabase
+    .channel('home-sessions')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'move_sessions' }, () => {
+      // 세션 INSERT·UPDATE·DELETE 시 홈 목록 자동 갱신
+      loadHomeSessions();
+    })
+    .subscribe();
+}
 
 async function loadHomeSessions() {
   if (!app.supabase) return;
