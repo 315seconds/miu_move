@@ -549,7 +549,7 @@ alter publication supabase_realtime add table session_items;</div>
 <!-- ════════════════ MANAGER SESSIONS LIST ════════════════ -->
 <div class="screen" id="s-manager-list">
   <div class="topbar">
-    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div class="topbar-back" onclick="showScreen('s-home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div style="flex:1"><div class="topbar-title">이동 승인</div><div class="topbar-sub" id="mgr-list-sub"></div></div>
     <div class="topbar-action" onclick="loadManagerSessions()">↻ 새로고침</div>
   </div>
@@ -681,7 +681,7 @@ alter publication supabase_realtime add table session_items;</div>
 <!-- ════════════════ ADMIN ════════════════ -->
 <div class="screen" id="s-admin">
   <div class="topbar">
-    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div class="topbar-back" onclick="showScreen('s-home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div><div class="topbar-title">관리자</div></div>
   </div>
   <div class="content">
@@ -2294,20 +2294,22 @@ async function verifyAdminPin() {
 async function loadAdmin() {
   if (!app.supabase) return;
   if (!app.adminAuthed) { showScreen('s-admin-auth', false); return; }
-  try {
-    const [locData, handlerData, aprData] = await Promise.all([
-      app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name'),
-      app.supabase.from('handlers').select('*').order('is_active', { ascending: false }).order('name'),
-      app.supabase.from('approvers').select('id,name').order('name'),
-    ]);
-    renderLocations(locData.data || []);
-    renderHandlers(handlerData.data || []);
-    renderApprovers(aprData.data || []);
-  } catch(e) { console.warn(e); }
+
+  // 각 쿼리를 독립적으로 실행 — 하나 실패해도 나머지는 표시
+  const [locRes, handlerRes, aprRes] = await Promise.allSettled([
+    app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name'),
+    app.supabase.from('handlers').select('*').order('is_active', { ascending: false }).order('name'),
+    app.supabase.from('approvers').select('id,name').order('name'),
+  ]);
+
+  renderLocations(locRes.status === 'fulfilled' ? (locRes.value.data || []) : []);
+  renderHandlers(handlerRes.status === 'fulfilled' ? (handlerRes.value.data || []) : []);
+  renderApprovers(aprRes.status === 'fulfilled' ? (aprRes.value.data || []) : []);
 }
 
 function renderHandlers(list) {
   const el = document.getElementById('handler-list');
+  if (!el) return;
   if (!list.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0">담당자가 없어요</div>'; return; }
   el.innerHTML = list.map(h => `
     <div class="location-item">
@@ -2342,8 +2344,9 @@ async function deleteHandler(id, name) {
     ]);
 }
 
-
 function renderLocations(locs) {
+  const el = document.getElementById('location-list');
+  if (!el) return;
   if (!locs.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0">매장이 없어요</div>'; return; }
   el.innerHTML = locs.map(l => `
     <div class="location-item">
