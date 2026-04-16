@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>이동관리 — 마켓인유</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0D0D0D;
+  --s1: #161616;
+  --s2: #1F1F1F;
+  --s3: #2A2A2A;
+  --border: #2E2E2E;
+  --accent: #F5A623;
+  --accent-dim: rgba(245,166,35,0.12);
+  --accent-glow: rgba(245,166,35,0.3);
+  --text: #F0EBE0;
+  --text2: #9A9A9A;
+  --text3: #555;
+  --danger: #E55353;
+  --danger-dim: rgba(229,83,83,0.12);
+  --success: #3DBA6F;
+  --success-dim: rgba(61,186,111,0.12);
+  --r: 12px;
+  --r-sm: 8px;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;overflow-x:hidden}
+body{max-width:480px;margin:0 auto;min-height:100vh;position:relative}
+
+/* ── SCREEN SYSTEM ── */
+.screen{display:none;min-height:100vh;flex-direction:column;animation:fadeIn 0.18s ease}
+.screen.active{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;gap:12px;padding:16px 20px;background:var(--s1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.topbar-back{width:36px;height:36px;border-radius:50%;background:var(--s2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s}
+.topbar-back:hover{background:var(--s3)}
+.topbar-back svg{width:18px;height:18px;fill:none;stroke:var(--text2);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.topbar-title{font-size:16px;font-weight:700;flex:1}
+.topbar-sub{font-size:12px;color:var(--text2);margin-top:1px}
+.topbar-action{font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;padding:6px 2px;white-space:nowrap}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.content-pad{padding:24px 20px}
+
+/* ── TYPOGRAPHY ── */
+h1.page-title{font-size:26px;font-weight:900;line-height:1.2;margin-bottom:6px}
+h2.section-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;margin-top:24px}
+h2.section-title:first-child{margin-top:0}
+p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px}
+
+/* ── CARDS ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.card+.card{margin-top:10px}
+.card-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-body{padding:16px}
+.card-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.card-row:last-child{border-bottom:none}
+.card-row-label{font-size:13px;color:var(--text2)}
+.card-row-value{font-size:14px;font-weight:600}
+
+/* ── BUTTONS ── */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px;border-radius:var(--r);border:none;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{background:#fdb83a}
+.btn-secondary{background:var(--s2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--s3)}
+.btn-danger{background:var(--danger-dim);color:var(--danger);border:1px solid rgba(229,83,83,0.25)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}
+.btn-sm{padding:10px 16px;font-size:13px;width:auto}
+.btn-icon{width:36px;height:36px;padding:0;border-radius:50%}
+.btn+.btn{margin-top:10px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ── HOME TILES ── */
+.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+.home-tile{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:20px 16px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:10px;aspect-ratio:1;justify-content:flex-end}
+.home-tile:hover{border-color:var(--accent);background:var(--accent-dim)}
+.home-tile:active{transform:scale(.96)}
+.home-tile-icon{font-size:28px;line-height:1}
+.home-tile-label{font-size:14px;font-weight:700;line-height:1.3}
+.home-tile-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.home-tile.accent{background:var(--accent);border-color:var(--accent)}
+.home-tile.accent .home-tile-label,.home-tile.accent .home-tile-sub{color:#000}
+
+/* ── FORM ── */
+.form-group{margin-bottom:16px}
+.form-label{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:block}
+.form-input{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:inherit;font-size:15px;padding:14px 16px;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--text3)}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;cursor:pointer}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-pending{background:rgba(245,166,35,0.15);color:var(--accent)}
+.badge-approved{background:var(--success-dim);color:var(--success)}
+.badge-correction{background:rgba(138,100,255,0.15);color:#a478ff}
+.badge-danger{background:var(--danger-dim);color:var(--danger)}
+.badge-dot::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block}
+
+/* ── SCAN LIST ── */
+.scan-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--s1);border-bottom:1px solid var(--border);position:sticky;top:56px;z-index:5}
+.scan-count{font-size:22px;font-weight:900;color:var(--accent);font-family:var(--font-mono)}
+.scan-count-label{font-size:11px;color:var(--text2);margin-top:1px}
+.scan-route{font-size:13px;color:var(--text2)}
+.scan-route strong{color:var(--text);font-weight:700}
+
+.scan-input-area{padding:12px 16px;background:var(--s2);border-bottom:1px solid var(--border)}
+.scan-input-wrap{position:relative;display:flex;align-items:center;gap:8px}
+.scan-input-field{flex:1;background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;padding:12px 14px;outline:none;transition:border-color .15s}
+.scan-input-field:focus{border-color:var(--accent)}
+.scan-pulse{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 0 var(--success);animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,186,111,.6)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+.scan-list{flex:1;overflow-y:auto}
+.scan-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);animation:slideIn .15s ease}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.scan-item-num{font-family:var(--font-mono);font-size:11px;color:var(--text3);width:24px;text-align:right;flex-shrink:0}
+.scan-item-info{flex:1;min-width:0}
+.scan-item-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scan-item-barcode{font-family:var(--font-mono);font-size:11px;color:var(--text2);margin-top:1px}
+.scan-item-meta{font-size:11px;color:var(--text2)}
+.scan-item-by{font-size:11px;color:var(--text3);flex-shrink:0}
+.scan-item-remove{width:28px;height:28px;border-radius:50%;background:var(--s3);border:none;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .1s}
+.scan-item-remove:hover{background:var(--danger-dim);color:var(--danger)}
+.scan-item.error{background:var(--danger-dim);opacity:.7}
+.scan-item.error .scan-item-name{color:var(--danger)}
+
+/* ── SESSION CARDS ── */
+.session-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;cursor:pointer;transition:all .15s;margin-bottom:10px}
+.session-card:hover{border-color:var(--accent);background:var(--accent-dim)}
+.session-card:active{transform:scale(.98)}
+.session-route{font-size:16px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.session-route-arrow{color:var(--accent)}
+.session-meta{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.session-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--text3);display:inline-block}
+.session-members{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.member-chip{background:var(--s3);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--text2)}
+.member-chip.me{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(245,166,35,.3)}
+
+/* ── LOOKUP ── */
+.history-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
+.history-item:last-child{border-bottom:none}
+.history-line{width:2px;background:var(--border);border-radius:2px;flex-shrink:0;margin:4px 0;position:relative}
+.history-line::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--s3);border:2px solid var(--border);position:absolute;left:-3px;top:0}
+.history-item:first-child .history-line::before{background:var(--success);border-color:var(--success)}
+.history-info{flex:1;min-width:0}
+.history-route{font-size:14px;font-weight:700;margin-bottom:3px}
+.history-date{font-family:var(--font-mono);font-size:11px;color:var(--text2)}
+.history-who{font-size:12px;color:var(--text2);margin-top:3px}
+.correction-tag{font-size:10px;font-weight:700;color:#a478ff;background:rgba(138,100,255,.12);padding:1px 6px;border-radius:4px;margin-left:6px}
+
+/* ── ADMIN ── */
+.location-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)}
+.location-item:last-child{border-bottom:none}
+.location-name{font-size:15px;font-weight:600}
+.location-inactive{color:var(--text3);text-decoration:line-through}
+.loc-actions{display:flex;gap:8px}
+.loc-btn{padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--s3);color:var(--text2);cursor:pointer;transition:all .1s}
+.loc-btn:hover{border-color:var(--accent);color:var(--accent)}
+.loc-btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+
+/* ── PIN PAD ── */
+.pin-display{display:flex;justify-content:center;gap:10px;margin:20px 0}
+.pin-dot{width:14px;height:14px;border-radius:50%;background:var(--s3);border:2px solid var(--border);transition:all .15s}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto}
+.pin-key{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);height:60px;font-size:20px;font-weight:700;cursor:pointer;transition:all .1s;display:flex;align-items:center;justify-content:center}
+.pin-key:active{background:var(--accent);color:#000;border-color:var(--accent);transform:scale(.94)}
+
+/* ── ALERT / TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:12px 20px;font-size:14px;font-weight:500;z-index:1000;transition:transform .25s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:calc(100vw - 40px);text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{border-color:var(--success);color:var(--success)}
+.toast.error{border-color:var(--danger);color:var(--danger)}
+
+/* ── ALERT MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:flex-end;padding:0}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--s1);border:1px solid var(--border);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:480px;margin:0 auto;padding:24px 20px 32px;animation:slideUp .2s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:.8}to{transform:none;opacity:1}}
+.modal-title{font-size:17px;font-weight:800;margin-bottom:8px}
+.modal-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:20px}
+.modal-actions{display:flex;gap:10px}
+.modal-actions .btn{flex:1}
+
+/* ── SLACK SUMMARY ── */
+.slack-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:16px;font-family:var(--font-mono);font-size:12px;line-height:1.8;color:var(--text2);white-space:pre-wrap;word-break:break-all;max-height:40vh;overflow-y:auto}
+
+/* ── SETTINGS ── */
+.settings-hint{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.6}
+.sql-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--text2);white-space:pre;overflow-x:auto;line-height:1.6;margin-top:8px}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:48px 24px;color:var(--text2)}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.4}
+.empty-text{font-size:14px;line-height:1.6}
+
+/* ── DIVIDER ── */
+.divider{height:1px;background:var(--border);margin:20px 0}
+
+/* ── LOADING ── */
+.loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:24px;color:var(--text2);font-size:14px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ════════════════ HOME ════════════════ -->
+<div class="screen active" id="s-home">
+  <div style="padding:32px 20px 0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase">마켓인유</div>
+      <div id="home-settings-btn" style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0" onclick="showScreen('s-settings')">⚙ 설정</div>
+    </div>
+    <h1 class="page-title">이동관리</h1>
+    <p style="font-size:13px;color:var(--text2);margin-top:4px" id="home-date"></p>
+  </div>
+  <div class="content" style="padding-top:8px">
+    <div id="home-config-warning" style="display:none;background:var(--danger-dim);border:1px solid rgba(229,83,83,.3);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--danger)">
+      ⚠ Supabase 또는 Dropbox 설정이 필요해요. 우측 상단 설정을 눌러주세요.
+    </div>
+    <div class="home-grid">
+      <div class="home-tile accent" onclick="startScanFlow()">
+        <div class="home-tile-icon">📦</div>
+        <div>
+          <div class="home-tile-label">바코드 스캔</div>
+          <div class="home-tile-sub">물류팀 담당자</div>
+        </div>
+      </div>
+      <div class="home-tile" onclick="startManagerFlow()">
+        <div class="home-tile-icon">✅</div>
+        <div>
+          <div class="home-tile-label">이동 승인</div>
+          <div class="home-tile-sub">매니저</div>
+        </div>
+      </div>
+      <div class="home-tile" onclick="showScreen('s-lookup')">
+        <div class="home-tile-icon">🔍</div>
+        <div>
+          <div class="home-tile-label">이동 경로 조회</div>
+          <div class="home-tile-sub">바코드로 확인</div>
+        </div>
+      </div>
+      <div class="home-tile" onclick="startAdminFlow()">
+        <div class="home-tile-icon">⚙️</div>
+        <div>
+          <div class="home-tile-label">관리자</div>
+          <div class="home-tile-sub">매장·승인자 관리</div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title" style="margin-top:28px">오늘 진행 중인 세션</h2>
+    <div id="home-sessions"></div>
+  </div>
+</div>
+
+<!-- ════════════════ SETTINGS ════════════════ -->
+<div class="screen" id="s-settings">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">설정</div></div>
+    <div class="topbar-action" onclick="saveSettings()">저장</div>
+  </div>
+  <div class="content">
+    <h2 class="section-title">Supabase 연결</h2>
+    <div class="form-group">
+      <label class="form-label">Project URL</label>
+      <input class="form-input" id="cfg-sb-url" placeholder="https://xxxx.supabase.co" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Anon Key</label>
+      <input class="form-input" id="cfg-sb-key" placeholder="eyJhbGc..." autocomplete="off">
+    </div>
+
+    <div class="divider"></div>
+    <h2 class="section-title" style="margin-top:0">Dropbox 연결</h2>
+    <div class="form-group">
+      <label class="form-label">Access Token</label>
+      <input class="form-input" id="cfg-db-token" placeholder="sl.Abc123..." autocomplete="off">
+      <div class="settings-hint">Dropbox 개발자 콘솔 → 앱 설정 → Access Token 발급 후 붙여넣기</div>
+    </div>
+
+    <div class="divider"></div>
+    <h2 class="section-title" style="margin-top:0">엑셀 컬럼 설정</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">바코드 열</label>
+        <input class="form-input" id="cfg-col-barcode" placeholder="A" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">위치 열 (B)</label>
+        <input class="form-input" id="cfg-col-location" placeholder="B" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">수정일 열 (O)</label>
+        <input class="form-input" id="cfg-col-date" placeholder="O" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">상품명 열</label>
+        <input class="form-input" id="cfg-col-name" placeholder="C" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">카테고리 열</label>
+        <input class="form-input" id="cfg-col-cat" placeholder="D" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">가격 열</label>
+        <input class="form-input" id="cfg-col-price" placeholder="E" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+    </div>
+    <div class="settings-hint" style="margin-top:10px">공동판매 엑셀 파일의 '입고' 시트 기준. 실제 파일에 맞게 조정해주세요.</div>
+
+    <div class="divider"></div>
+    <h2 class="section-title" style="margin-top:0">Supabase 테이블 생성 SQL</h2>
+    <div class="settings-hint" style="margin-bottom:8px">아직 테이블이 없다면 Supabase → SQL Editor에서 아래 SQL을 실행하세요.</div>
+    <div class="sql-box">create table locations (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+
+create table approvers (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  pin text not null,
+  created_at timestamptz default now()
+);
+
+create table move_sessions (
+  id uuid default gen_random_uuid() primary key,
+  session_date date not null,
+  from_location text not null,
+  to_location text not null,
+  status text default 'pending',
+  created_by text not null,
+  approved_by text,
+  approved_at timestamptz,
+  is_correction boolean default false,
+  correction_reason text,
+  created_at timestamptz default now()
+);
+
+create table session_items (
+  id uuid default gen_random_uuid() primary key,
+  session_id uuid references move_sessions(id),
+  barcode text not null,
+  product_name text,
+  category text,
+  price text,
+  current_location text,
+  scanned_by text not null,
+  scanned_at timestamptz default now(),
+  is_error boolean default false,
+  error_msg text
+);
+
+alter publication supabase_realtime add table session_items;</div>
+  </div>
+</div>
+
+<!-- ════════════════ SCAN INFO ════════════════ -->
+<div class="screen" id="s-scan-info">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">이동 시작</div><div class="topbar-sub">정보를 입력하세요</div></div>
+  </div>
+  <div class="content">
+    <div class="form-group">
+      <label class="form-label">담당자 이름</label>
+      <input class="form-input" id="scan-name" placeholder="이름 입력" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">출발지</label>
+      <select class="form-input form-select" id="scan-from"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">도착지</label>
+      <select class="form-input form-select" id="scan-to"></select>
+    </div>
+    <div id="scan-info-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:12px"></div>
+    <button class="btn btn-primary" onclick="submitScanInfo()" id="scan-info-next-btn">
+      <span>다음 — 스캔 시작</span>
+    </button>
+    <div id="scan-info-loading" class="loading" style="display:none"><div class="spinner"></div>엑셀 파일 불러오는 중...</div>
+  </div>
+</div>
+
+<!-- ════════════════ SESSION CONFIRM ════════════════ -->
+<div class="screen" id="s-session-confirm">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">기존 세션 발견</div></div>
+  </div>
+  <div class="content">
+    <div style="text-align:center;padding:20px 0 24px">
+      <div style="font-size:40px;margin-bottom:16px">📋</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">오늘 이미 같은 이동 세션이 있어요</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6">이 세션에 합류해서 함께 스캔할 수 있어요</div>
+    </div>
+    <div class="card" id="existing-session-info" style="margin-bottom:20px"></div>
+    <button class="btn btn-primary" onclick="joinExistingSession()">이 세션에 합류하기</button>
+    <button class="btn btn-ghost" style="margin-top:10px" onclick="goBack()">돌아가기</button>
+  </div>
+</div>
+
+<!-- ════════════════ SCANNING ════════════════ -->
+<div class="screen" id="s-scanning">
+  <div class="topbar">
+    <div class="topbar-back" onclick="confirmLeaveScanning()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div style="flex:1">
+      <div class="topbar-title" id="scanning-title">스캔 중</div>
+      <div class="topbar-sub" id="scanning-sub"></div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="submitScan()">제출</button>
+  </div>
+  <div class="scan-header">
+    <div>
+      <div class="scan-count" id="scan-count">0</div>
+      <div class="scan-count-label">스캔된 물건</div>
+    </div>
+    <div style="text-align:right">
+      <div class="scan-route" id="scan-route-display"></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px" id="scan-session-members"></div>
+    </div>
+  </div>
+  <div class="scan-input-area">
+    <div class="scan-input-wrap">
+      <div class="scan-pulse"></div>
+      <input class="scan-input-field" id="barcode-input" placeholder="바코드를 스캔하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+  </div>
+  <div class="scan-list" id="scan-list"></div>
+</div>
+
+<!-- ════════════════ MANAGER AUTH ════════════════ -->
+<div class="screen" id="s-manager-auth">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">매니저 인증</div></div>
+  </div>
+  <div class="content" style="text-align:center">
+    <div style="font-size:32px;margin-bottom:16px;margin-top:8px">🔐</div>
+    <div class="form-group" style="text-align:left;max-width:280px;margin:0 auto 20px">
+      <label class="form-label">이름 선택</label>
+      <select class="form-input form-select" id="mgr-name-select"></select>
+    </div>
+    <div class="pin-display" id="pin-display">
+      <div class="pin-dot" id="pin-d1"></div>
+      <div class="pin-dot" id="pin-d2"></div>
+      <div class="pin-dot" id="pin-d3"></div>
+      <div class="pin-dot" id="pin-d4"></div>
+    </div>
+    <div class="pin-pad" id="pin-pad">
+      <div class="pin-key" onclick="pinPress('1')">1</div>
+      <div class="pin-key" onclick="pinPress('2')">2</div>
+      <div class="pin-key" onclick="pinPress('3')">3</div>
+      <div class="pin-key" onclick="pinPress('4')">4</div>
+      <div class="pin-key" onclick="pinPress('5')">5</div>
+      <div class="pin-key" onclick="pinPress('6')">6</div>
+      <div class="pin-key" onclick="pinPress('7')">7</div>
+      <div class="pin-key" onclick="pinPress('8')">8</div>
+      <div class="pin-key" onclick="pinPress('9')">9</div>
+      <div class="pin-key" style="grid-column:1;font-size:14px;color:var(--text2)" onclick="pinClear()">지우기</div>
+      <div class="pin-key" onclick="pinPress('0')">0</div>
+      <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="pinBackspace()">⌫</div>
+    </div>
+    <div id="pin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
+  </div>
+</div>
+
+<!-- ════════════════ ADMIN AUTH ════════════════ -->
+<div class="screen" id="s-admin-auth">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">관리자 인증</div><div class="topbar-sub">승인자 PIN이 필요해요</div></div>
+  </div>
+  <div class="content" style="text-align:center">
+    <div style="font-size:32px;margin-bottom:16px;margin-top:8px">🛡️</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6">매장 목록, 승인자 관리는<br>승인자 인증 후 이용 가능해요</div>
+    <div class="form-group" style="text-align:left;max-width:280px;margin:0 auto 20px">
+      <label class="form-label">이름 선택</label>
+      <select class="form-input form-select" id="admin-name-select"></select>
+    </div>
+    <div class="pin-display" id="admin-pin-display">
+      <div class="pin-dot" id="adm-d1"></div>
+      <div class="pin-dot" id="adm-d2"></div>
+      <div class="pin-dot" id="adm-d3"></div>
+      <div class="pin-dot" id="adm-d4"></div>
+    </div>
+    <div class="pin-pad">
+      <div class="pin-key" onclick="adminPinPress('1')">1</div>
+      <div class="pin-key" onclick="adminPinPress('2')">2</div>
+      <div class="pin-key" onclick="adminPinPress('3')">3</div>
+      <div class="pin-key" onclick="adminPinPress('4')">4</div>
+      <div class="pin-key" onclick="adminPinPress('5')">5</div>
+      <div class="pin-key" onclick="adminPinPress('6')">6</div>
+      <div class="pin-key" onclick="adminPinPress('7')">7</div>
+      <div class="pin-key" onclick="adminPinPress('8')">8</div>
+      <div class="pin-key" onclick="adminPinPress('9')">9</div>
+      <div class="pin-key" style="grid-column:1;font-size:14px;color:var(--text2)" onclick="adminPinClear()">지우기</div>
+      <div class="pin-key" onclick="adminPinPress('0')">0</div>
+      <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="adminPinBackspace()">⌫</div>
+    </div>
+    <div id="admin-pin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
+  </div>
+</div>
+
+<!-- ════════════════ MANAGER SESSIONS LIST ════════════════ -->
+<div class="screen" id="s-manager-list">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div style="flex:1"><div class="topbar-title">이동 승인</div><div class="topbar-sub" id="mgr-list-sub"></div></div>
+    <div class="topbar-action" onclick="loadManagerSessions()">↻ 새로고침</div>
+  </div>
+  <div class="content">
+    <h2 class="section-title">대기 중인 세션</h2>
+    <div id="mgr-pending-list"></div>
+    <h2 class="section-title">오늘 완료된 세션</h2>
+    <div id="mgr-approved-list"></div>
+  </div>
+</div>
+
+<!-- ════════════════ SESSION DETAIL ════════════════ -->
+<div class="screen" id="s-session-detail">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div style="flex:1"><div class="topbar-title" id="detail-title">세션 상세</div><div class="topbar-sub" id="detail-sub"></div></div>
+    <div id="detail-badge-wrap"></div>
+  </div>
+  <div class="content">
+    <div id="detail-approve-warning" style="display:none;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--accent);line-height:1.6">
+      ⚠ 승인 전, 슬랙 공동판매 채널에 <strong>"사용중"</strong> 메시지를 먼저 남겨주세요.
+    </div>
+    <div id="detail-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px"></div>
+    <h2 class="section-title">스캔 목록</h2>
+    <div id="detail-items-list"></div>
+    <div id="detail-approve-btn-area" style="margin-top:20px;display:none">
+      <button class="btn btn-primary" onclick="startApprove()">
+        <span>✓ 이동 승인하기</span>
+      </button>
+      <button class="btn btn-ghost" style="margin-top:10px" onclick="startCorrection()">
+        정정 이동으로 처리
+      </button>
+    </div>
+    <div id="detail-approved-info" style="display:none;background:var(--success-dim);border:1px solid rgba(61,186,111,.3);border-radius:var(--r);padding:14px 16px;font-size:13px;color:var(--success)"></div>
+  </div>
+</div>
+
+<!-- ════════════════ APPROVE CONFIRM (PIN) ════════════════ -->
+<div class="screen" id="s-approve-confirm">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">승인 확인</div><div class="topbar-sub">PIN을 입력하세요</div></div>
+  </div>
+  <div class="content" style="text-align:center">
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:24px;text-align:left" id="approve-summary"></div>
+    <div class="pin-display" id="apin-display">
+      <div class="pin-dot" id="apin-d1"></div>
+      <div class="pin-dot" id="apin-d2"></div>
+      <div class="pin-dot" id="apin-d3"></div>
+      <div class="pin-dot" id="apin-d4"></div>
+    </div>
+    <div class="pin-pad">
+      <div class="pin-key" onclick="apinPress('1')">1</div>
+      <div class="pin-key" onclick="apinPress('2')">2</div>
+      <div class="pin-key" onclick="apinPress('3')">3</div>
+      <div class="pin-key" onclick="apinPress('4')">4</div>
+      <div class="pin-key" onclick="apinPress('5')">5</div>
+      <div class="pin-key" onclick="apinPress('6')">6</div>
+      <div class="pin-key" onclick="apinPress('7')">7</div>
+      <div class="pin-key" onclick="apinPress('8')">8</div>
+      <div class="pin-key" onclick="apinPress('9')">9</div>
+      <div class="pin-key" style="grid-column:1;font-size:14px;color:var(--text2)" onclick="apinClear()">지우기</div>
+      <div class="pin-key" onclick="apinPress('0')">0</div>
+      <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="apinBackspace()">⌫</div>
+    </div>
+    <div id="apin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
+    <div id="apin-loading" class="loading" style="display:none"><div class="spinner"></div>Dropbox 업데이트 중...</div>
+  </div>
+</div>
+
+<!-- ════════════════ SLACK SUMMARY ════════════════ -->
+<div class="screen" id="s-slack-summary">
+  <div class="topbar">
+    <div class="topbar-back" onclick="showScreen('s-home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">슬랙 요약문</div><div class="topbar-sub">이동보고 채널에 붙여넣기</div></div>
+  </div>
+  <div class="content">
+    <div class="slack-box" id="slack-text"></div>
+    <button class="btn btn-primary" onclick="copySlack()" style="margin-top:16px">📋 복사하기</button>
+    <button class="btn btn-secondary" onclick="showScreen('s-home')" style="margin-top:10px">홈으로</button>
+  </div>
+</div>
+
+<!-- ════════════════ LOOKUP ════════════════ -->
+<div class="screen" id="s-lookup">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">이동 경로 조회</div></div>
+  </div>
+  <div class="content">
+    <div class="form-group">
+      <label class="form-label">바코드 입력</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="lookup-input" placeholder="바코드를 스캔하거나 입력하세요" style="flex:1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <button class="btn btn-primary btn-sm" onclick="doLookup()" style="width:60px">조회</button>
+      </div>
+    </div>
+    <div id="lookup-result"></div>
+  </div>
+</div>
+
+<!-- ════════════════ ADMIN ════════════════ -->
+<div class="screen" id="s-admin">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">관리자</div></div>
+  </div>
+  <div class="content">
+    <h2 class="section-title">매장 / 창고 목록</h2>
+    <div id="admin-need-auth" style="display:none;background:var(--danger-dim);border:1px solid rgba(229,83,83,.25);border-radius:var(--r);padding:14px 16px;font-size:13px;color:var(--danger);margin-bottom:12px">
+      변경은 매니저 인증 후 가능해요.
+    </div>
+    <div id="location-list"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input class="form-input" id="new-location-input" placeholder="새 매장 이름" style="flex:1">
+      <button class="btn btn-primary btn-sm" onclick="addLocation()" style="width:60px">추가</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <h2 class="section-title" style="margin-top:0">승인자 관리</h2>
+    <div id="approver-list"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:12px;align-items:end">
+      <div>
+        <label class="form-label">이름</label>
+        <input class="form-input" id="new-approver-name" placeholder="이름">
+      </div>
+      <div>
+        <label class="form-label">PIN (4자리)</label>
+        <input class="form-input" id="new-approver-pin" placeholder="0000" maxlength="4" type="password" style="font-family:var(--font-mono)">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="addApprover()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ CORRECTION ════════════════ -->
+<div class="screen" id="s-correction">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div><div class="topbar-title">정정 이동</div><div class="topbar-sub">잘못된 이동 수정</div></div>
+  </div>
+  <div class="content">
+    <div style="background:rgba(164,120,255,.1);border:1px solid rgba(164,120,255,.3);border-radius:var(--r);padding:14px 16px;font-size:13px;color:#a478ff;margin-bottom:20px;line-height:1.6">
+      원래 이동을 되돌리거나 올바른 위치로 다시 이동합니다. 이전 기록은 그대로 남고 새 이동 기록이 추가됩니다.
+    </div>
+    <div class="form-group">
+      <label class="form-label">정정할 이동 ID</label>
+      <input class="form-input" id="corr-session-id" placeholder="세션 ID" readonly style="font-family:var(--font-mono);font-size:12px">
+    </div>
+    <div class="form-group">
+      <label class="form-label">정정 후 출발지</label>
+      <select class="form-input form-select" id="corr-from"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">정정 후 도착지</label>
+      <select class="form-input form-select" id="corr-to"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">정정 사유 (필수)</label>
+      <input class="form-input" id="corr-reason" placeholder="예: 성수 → 홍대 잘못 이동, 공동물류로 복귀">
+    </div>
+    <button class="btn btn-primary" onclick="submitCorrection()">정정 이동 생성</button>
+  </div>
+</div>
+
+<!-- ════════════════ MODAL ════════════════ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-desc" id="modal-desc"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- ════════════════ TOAST ════════════════ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  APP STATE
+// ══════════════════════════════════════════
+const app = {
+  supabase: null,
+  settings: {},
+  navStack: [],
+  currentScreen: 's-home',
+
+  // scan flow
+  scanUser: '',
+  scanFrom: '',
+  scanTo: '',
+  currentSession: null,
+  excelWorkbook: null,
+  excelBarcodeMap: null, // {barcode: rowIndex}
+  excelFilePath: '',
+  realtimeSub: null,
+  scannedItems: [],       // local list for current scanner
+
+  // manager flow
+  mgrApprover: null,
+  selectedSession: null,
+
+  // pin state
+  pinBuffer: '',
+  apinBuffer: '',
+  adminPinBuffer: '',
+  adminAuthed: false,
+};
+
+const DEFAULT_SETTINGS = {
+  supabaseUrl: '', supabaseKey: '',
+  dropboxToken: '',
+  colBarcode: 'G', colLocation: 'B', colDate: 'O',
+  colName: 'D', colCat: 'H', colPrice: 'E'
+};
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  initSupabase();
+  renderHomeDate();
+  loadHomeSessions();
+
+  // barcode input
+  const bi = document.getElementById('barcode-input');
+  bi.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const v = e.target.value.trim();
+      if (v) { processBarcode(v); e.target.value = ''; }
+    }
+  });
+
+  // lookup enter
+  document.getElementById('lookup-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLookup();
+  });
+});
+
+// ══════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════
+function loadSettings() {
+  try { app.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('miu-settings') || '{}') }; }
+  catch { app.settings = { ...DEFAULT_SETTINGS }; }
+  const f = id => document.getElementById(id);
+  f('cfg-sb-url').value  = app.settings.supabaseUrl  || '';
+  f('cfg-sb-key').value  = app.settings.supabaseKey  || '';
+  f('cfg-db-token').value= app.settings.dropboxToken || '';
+  f('cfg-col-barcode').value = app.settings.colBarcode || 'A';
+  f('cfg-col-location').value= app.settings.colLocation|| 'B';
+  f('cfg-col-date').value    = app.settings.colDate    || 'O';
+  f('cfg-col-name').value    = app.settings.colName    || 'C';
+  f('cfg-col-cat').value     = app.settings.colCat     || 'D';
+  f('cfg-col-price').value   = app.settings.colPrice   || 'E';
+}
+
+function saveSettings() {
+  const f = id => document.getElementById(id).value.trim();
+  app.settings = {
+    supabaseUrl: f('cfg-sb-url'), supabaseKey: f('cfg-sb-key'),
+    dropboxToken: f('cfg-db-token'),
+    colBarcode: f('cfg-col-barcode').toUpperCase() || 'A',
+    colLocation: f('cfg-col-location').toUpperCase() || 'B',
+    colDate: f('cfg-col-date').toUpperCase() || 'O',
+    colName: f('cfg-col-name').toUpperCase() || 'C',
+    colCat: f('cfg-col-cat').toUpperCase() || 'D',
+    colPrice: f('cfg-col-price').toUpperCase() || 'E',
+  };
+  localStorage.setItem('miu-settings', JSON.stringify(app.settings));
+  initSupabase();
+  showToast('설정이 저장됐어요', 'success');
+  goBack();
+}
+
+// ══════════════════════════════════════════
+//  SUPABASE
+// ══════════════════════════════════════════
+function initSupabase() {
+  const { supabaseUrl, supabaseKey } = app.settings;
+  if (supabaseUrl && supabaseKey) {
+    try {
+      app.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      document.getElementById('home-config-warning').style.display = 'none';
+    } catch(e) { console.warn('Supabase init failed', e); }
+  } else {
+    document.getElementById('home-config-warning').style.display = 'block';
+  }
+}
+
+async function sbQuery(fn) {
+  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); throw new Error('No Supabase'); }
+  return fn(app.supabase);
+}
+
+// ══════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════
+function showScreen(id, pushHistory = true) {
+  if (pushHistory && id !== app.currentScreen) app.navStack.push(app.currentScreen);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  app.currentScreen = id;
+  window.scrollTo(0, 0);
+  onScreenEnter(id);
+}
+
+function goBack() {
+  const prev = app.navStack.pop();
+  if (prev) showScreen(prev, false);
+  else showScreen('s-home', false);
+}
+
+function onScreenEnter(id) {
+  if (id === 's-home') { loadHomeSessions(); app.adminAuthed = false; }
+  if (id === 's-scan-info') initScanInfo();
+  if (id === 's-manager-auth') initManagerAuth();
+  if (id === 's-manager-list') loadManagerSessions();
+  if (id === 's-admin-auth') initAdminAuth();
+  if (id === 's-admin') loadAdmin();
+  if (id === 's-scanning') focusBarcodeInput();
+}
+
+// ══════════════════════════════════════════
+//  HOME
+// ══════════════════════════════════════════
+function renderHomeDate() {
+  const d = new Date();
+  const days = ['일','월','화','수','목','금','토'];
+  document.getElementById('home-date').textContent =
+    `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} (${days[d.getDay()]})`;
+}
+
+async function loadHomeSessions() {
+  if (!app.supabase) return;
+  const today = toDateStr(new Date());
+  try {
+    const { data } = await app.supabase
+      .from('move_sessions')
+      .select('*, session_items(count)')
+      .eq('session_date', today)
+      .order('created_at', { ascending: false });
+    const el = document.getElementById('home-sessions');
+    if (!data || data.length === 0) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">오늘 진행된 세션이 없어요</div></div>';
+      return;
+    }
+    el.innerHTML = data.map(s => sessionCardHTML(s, false)).join('');
+  } catch(e) { console.warn(e); }
+}
+
+function sessionCardHTML(s, clickable = true) {
+  const badgeMap = { pending: 'pending', approved: 'approved', correction: 'correction' };
+  const badgeLbl = { pending: '대기중', approved: '완료', correction: '정정완료' };
+  const count = s.session_items?.[0]?.count ?? '?';
+  return `<div class="session-card" ${clickable ? `onclick="viewSession('${s.id}')"` : ''}>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="session-route">${s.from_location} <span class="session-route-arrow">→</span> ${s.to_location}</div>
+      <span class="badge badge-${badgeMap[s.status] || 'pending'} badge-dot">${badgeLbl[s.status] || s.status}</span>
+    </div>
+    <div class="session-meta">
+      <span style="font-family:var(--font-mono);font-size:11px">${count}벌</span>
+      <span class="session-meta-dot"></span>
+      <span>${formatTime(s.created_at)}</span>
+      <span class="session-meta-dot"></span>
+      <span>${s.created_by}</span>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+//  SCAN FLOW
+// ══════════════════════════════════════════
+async function startScanFlow() {
+  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); return; }
+  showScreen('s-scan-info');
+}
+
+async function initScanInfo() {
+  try {
+    const { data } = await sbQuery(sb => sb.from('locations').select('*').eq('is_active', true).order('name'));
+    const locs = data || [];
+    const fromSel = document.getElementById('scan-from');
+    const toSel   = document.getElementById('scan-to');
+    fromSel.innerHTML = '<option value="">출발지 선택</option>' + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+    toSel.innerHTML   = '<option value="">도착지 선택</option>' + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+  } catch(e) { console.warn(e); }
+}
+
+async function submitScanInfo() {
+  const name = document.getElementById('scan-name').value.trim();
+  const from = document.getElementById('scan-from').value;
+  const to   = document.getElementById('scan-to').value;
+  const errEl = document.getElementById('scan-info-error');
+
+  if (!name) { errEl.textContent = '이름을 입력해주세요'; errEl.style.display='block'; return; }
+  if (!from) { errEl.textContent = '출발지를 선택해주세요'; errEl.style.display='block'; return; }
+  if (!to)   { errEl.textContent = '도착지를 선택해주세요'; errEl.style.display='block'; return; }
+  if (from === to) { errEl.textContent = '출발지와 도착지가 같아요'; errEl.style.display='block'; return; }
+  errEl.style.display = 'none';
+
+  app.scanUser = name;
+  app.scanFrom = from;
+  app.scanTo   = to;
+
+  // Load Excel
+  const btn = document.getElementById('scan-info-next-btn');
+  const ldg = document.getElementById('scan-info-loading');
+  btn.style.display = 'none';
+  ldg.style.display = 'flex';
+
+  try {
+    await loadExcelFromDropbox();
+  } catch(e) {
+    btn.style.display = 'flex';
+    ldg.style.display = 'none';
+    errEl.textContent = `엑셀 파일을 불러오지 못했어요: ${e.message}`;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.style.display = 'flex';
+  ldg.style.display = 'none';
+
+  // Check existing session
+  const today = toDateStr(new Date());
+  try {
+    const { data } = await app.supabase
+      .from('move_sessions')
+      .select('*, session_items(count)')
+      .eq('session_date', today)
+      .eq('from_location', from)
+      .eq('to_location', to)
+      .eq('status', 'pending')
+      .single();
+
+    if (data) {
+      // Show join confirm
+      const count = data.session_items?.[0]?.count ?? 0;
+      document.getElementById('existing-session-info').innerHTML = `
+        <div class="card-row"><span class="card-row-label">루트</span><span class="card-row-value">${data.from_location} → ${data.to_location}</span></div>
+        <div class="card-row"><span class="card-row-label">생성자</span><span class="card-row-value">${data.created_by}</span></div>
+        <div class="card-row"><span class="card-row-label">현재 스캔</span><span class="card-row-value" style="color:var(--accent);font-family:var(--font-mono)">${count}벌</span></div>
+        <div class="card-row"><span class="card-row-label">시작 시간</span><span class="card-row-value">${formatTime(data.created_at)}</span></div>
+      `;
+      app.currentSession = data;
+      showScreen('s-session-confirm');
+    } else {
+      await createNewSession();
+    }
+  } catch {
+    await createNewSession();
+  }
+}
+
+async function joinExistingSession() {
+  await enterScanningScreen();
+}
+
+async function createNewSession() {
+  const { data, error } = await app.supabase.from('move_sessions').insert({
+    session_date: toDateStr(new Date()),
+    from_location: app.scanFrom,
+    to_location: app.scanTo,
+    status: 'pending',
+    created_by: app.scanUser,
+  }).select().single();
+  if (error) throw new Error(error.message);
+  app.currentSession = data;
+  await enterScanningScreen();
+}
+
+async function enterScanningScreen() {
+  app.scannedItems = [];
+  document.getElementById('scan-list').innerHTML = '';
+  document.getElementById('scan-count').textContent = '0';
+  document.getElementById('scanning-title').textContent = `${app.scanFrom} → ${app.scanTo}`;
+  document.getElementById('scanning-sub').textContent = app.scanUser;
+  document.getElementById('scan-route-display').innerHTML = `<strong>${app.scanFrom}</strong> → <strong>${app.scanTo}</strong>`;
+
+  // Subscribe to realtime
+  if (app.realtimeSub) { app.supabase.removeChannel(app.realtimeSub); }
+  app.realtimeSub = app.supabase
+    .channel(`session-${app.currentSession.id}`)
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'session_items',
+      filter:`session_id=eq.${app.currentSession.id}` }, payload => {
+      if (payload.new.scanned_by !== app.scanUser) {
+        addItemToUI(payload.new, false);
+      }
+      updateSessionMemberCount();
+    }).subscribe();
+
+  // Load existing items
+  const { data } = await app.supabase.from('session_items')
+    .select('*').eq('session_id', app.currentSession.id).order('scanned_at', { ascending: false });
+  if (data) {
+    data.forEach(item => addItemToUI(item, false));
+  }
+
+  showScreen('s-scanning');
+}
+
+function focusBarcodeInput() {
+  setTimeout(() => { document.getElementById('barcode-input')?.focus(); }, 200);
+}
+
+async function processBarcode(barcode) {
+  // Check duplicate in current scan list
+  if (app.scannedItems.find(i => i.barcode === barcode)) {
+    showToast(`이미 스캔된 바코드예요: ${barcode}`, 'error');
+    return;
+  }
+
+  // Look up in excel
+  let item = { barcode, is_error: false, product_name: '', category: '', price: '', current_location: '' };
+
+  if (app.excelBarcodeMap && app.excelBarcodeMap[barcode] !== undefined) {
+    const rowIdx = app.excelBarcodeMap[barcode];
+    const wb = app.excelWorkbook;
+    const sheet = wb.Sheets['입고'];
+    if (sheet) {
+      const getCell = (col) => {
+        const ref = XLSX.utils.encode_cell({ r: rowIdx, c: XLSX.utils.decode_col(col) });
+        return sheet[ref]?.v ?? '';
+      };
+      item.product_name    = String(getCell(app.settings.colName     || 'C'));
+      item.category        = String(getCell(app.settings.colCat      || 'D'));
+      item.price           = String(getCell(app.settings.colPrice    || 'E'));
+      item.current_location= String(getCell(app.settings.colLocation || 'B'));
+    }
+  } else {
+    item.is_error = true;
+    item.error_msg = '공동판매 파일에 없는 바코드';
+    showErrorToast(barcode);
+  }
+
+  // Save to Supabase
+  const { data } = await app.supabase.from('session_items').insert({
+    session_id: app.currentSession.id,
+    barcode: item.barcode,
+    product_name: item.product_name,
+    category: item.category,
+    price: item.price,
+    current_location: item.current_location,
+    scanned_by: app.scanUser,
+    is_error: item.is_error,
+    error_msg: item.error_msg || null,
+  }).select().single();
+
+  if (data) {
+    app.scannedItems.unshift(data);
+    addItemToUI(data, true);
+    updateScanCount();
+  }
+}
+
+function showErrorToast(barcode) {
+  showModal('바코드를 찾을 수 없어요',
+    `${barcode}\n\n공동판매 파일에 없는 바코드예요. 스캔 목록에 오류로 표시되고, 승인 시 엑셀 업데이트에서 제외됩니다.\n\n입고 처리가 되지 않은 물건인지 확인해주세요.`,
+    [{ label:'확인', class:'btn-primary', fn: closeModal }]);
+}
+
+function addItemToUI(item, prepend = true) {
+  const list = document.getElementById('scan-list');
+  const count = list.children.length + 1;
+  const div = document.createElement('div');
+  div.className = `scan-item${item.is_error ? ' error' : ''}`;
+  div.id = `item-${item.id}`;
+  div.innerHTML = `
+    <div class="scan-item-num">${prepend ? '' : count}</div>
+    <div class="scan-item-info">
+      <div class="scan-item-name">${item.is_error ? `⚠ ${item.barcode}` : (item.product_name || item.barcode)}</div>
+      <div class="scan-item-barcode">${item.barcode}${item.category ? ` · ${item.category}` : ''}${item.price ? ` · ${item.price}` : ''}</div>
+      ${item.is_error ? `<div style="font-size:11px;color:var(--danger)">${item.error_msg}</div>` : ''}
+    </div>
+    <div class="scan-item-by">${item.scanned_by}</div>
+    ${item.scanned_by === app.scanUser ? `<button class="scan-item-remove" onclick="removeItem('${item.id}')">✕</button>` : ''}
+  `;
+  if (prepend && list.firstChild) list.insertBefore(div, list.firstChild);
+  else list.appendChild(div);
+  updateScanCount();
+}
+
+async function removeItem(itemId) {
+  await app.supabase.from('session_items').delete().eq('id', itemId);
+  document.getElementById(`item-${itemId}`)?.remove();
+  app.scannedItems = app.scannedItems.filter(i => i.id !== itemId);
+  updateScanCount();
+}
+
+function updateScanCount() {
+  const count = document.getElementById('scan-list').children.length;
+  document.getElementById('scan-count').textContent = count;
+}
+
+async function updateSessionMemberCount() {
+  try {
+    const { data } = await app.supabase.from('session_items')
+      .select('scanned_by').eq('session_id', app.currentSession.id);
+    if (data) {
+      const members = [...new Set(data.map(d => d.scanned_by))];
+      document.getElementById('scan-session-members').textContent = members.join(', ');
+    }
+  } catch{}
+}
+
+async function submitScan() {
+  const count = document.getElementById('scan-list').children.length;
+  if (count === 0) { showToast('스캔된 물건이 없어요', 'error'); return; }
+  showModal('스캔 완료', `${app.scanFrom} → ${app.scanTo}\n총 ${count}벌을 제출해요.\n\n매니저의 승인 후 엑셀이 업데이트됩니다.`,
+    [
+      { label: '제출하기', class: 'btn-primary', fn: async () => { closeModal(); if(app.realtimeSub) app.supabase.removeChannel(app.realtimeSub); showToast('제출 완료! 매니저 승인을 기다려요', 'success'); showScreen('s-home'); }},
+      { label: '계속 스캔', class: 'btn-secondary', fn: closeModal }
+    ]);
+}
+
+function confirmLeaveScanning() {
+  showModal('스캔 중단', '세션은 유지되고 다른 팀원이 계속 스캔할 수 있어요.\n그래도 나가시겠어요?',
+    [
+      { label: '나가기', class: 'btn-danger', fn: () => { closeModal(); if(app.realtimeSub) app.supabase.removeChannel(app.realtimeSub); showScreen('s-home'); }},
+      { label: '계속 스캔', class: 'btn-secondary', fn: closeModal }
+    ]);
+}
+
+// ══════════════════════════════════════════
+//  DROPBOX + EXCEL
+// ══════════════════════════════════════════
+function getExcelFilePath(date) {
+  const d = date || new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  return `/공동판매_auto/${year}/${month}월/${year}.${pad(month)}_공동판매.xlsx`;
+}
+
+async function loadExcelFromDropbox() {
+  const { dropboxToken } = app.settings;
+  if (!dropboxToken) throw new Error('Dropbox 토큰이 없어요. 설정을 확인해주세요.');
+
+  const path = getExcelFilePath();
+  app.excelFilePath = path;
+
+  const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${dropboxToken}`,
+      'Dropbox-API-Arg': JSON.stringify({ path }),
+    }
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error_summary || `파일 다운로드 실패 (${res.status})`);
+  }
+
+  const buffer = await res.arrayBuffer();
+  const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true });
+  app.excelWorkbook = wb;
+
+  // Build barcode map
+  const sheetName = '입고';
+  const sheet = wb.Sheets[sheetName];
+  if (!sheet) throw new Error(`'입고' 시트를 찾을 수 없어요.`);
+
+  const bcCol = XLSX.utils.decode_col(app.settings.colBarcode || 'A');
+  const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const map = {};
+  jsonData.forEach((row, i) => {
+    if (i === 0) return;
+    const bc = row[bcCol];
+    if (bc !== undefined && bc !== '') map[String(bc).trim()] = i;
+  });
+  app.excelBarcodeMap = map;
+}
+
+async function uploadExcelToDropbox(workbook) {
+  const { dropboxToken } = app.settings;
+  const data = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${dropboxToken}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': JSON.stringify({
+        path: app.excelFilePath || getExcelFilePath(),
+        mode: 'overwrite', autorename: false, mute: false
+      })
+    },
+    body: new Uint8Array(data)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error_summary || `업로드 실패 (${res.status})`);
+  }
+}
+
+async function updateExcelForSession(session, items) {
+  // Download fresh copy
+  app.excelFilePath = getExcelFilePath(new Date(session.session_date));
+  await loadExcelFromDropbox();
+
+  const wb = app.excelWorkbook;
+  const sheet = wb.Sheets['입고'];
+  if (!sheet) throw new Error("'입고' 시트를 찾을 수 없어요");
+
+  const locColIdx  = XLSX.utils.decode_col(app.settings.colLocation || 'B');
+  const dateColIdx = XLSX.utils.decode_col(app.settings.colDate     || 'O');
+  const todayStr   = toDateStr(new Date());
+  let updatedCount = 0;
+
+  items.filter(i => !i.is_error).forEach(item => {
+    const rowIdx = app.excelBarcodeMap[item.barcode];
+    if (rowIdx === undefined) return;
+    const locRef  = XLSX.utils.encode_cell({ r: rowIdx, c: locColIdx  });
+    const dateRef = XLSX.utils.encode_cell({ r: rowIdx, c: dateColIdx });
+    sheet[locRef]  = { t:'s', v: session.to_location };
+    sheet[dateRef] = { t:'s', v: todayStr };
+    updatedCount++;
+  });
+
+  await uploadExcelToDropbox(wb);
+  return updatedCount;
+}
+
+// ══════════════════════════════════════════
+//  MANAGER FLOW
+// ══════════════════════════════════════════
+async function startManagerFlow() {
+  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); return; }
+  app.pinBuffer = '';
+  updatePinDots('pin-d', 0);
+  document.getElementById('pin-error').textContent = '';
+  showScreen('s-manager-auth');
+}
+
+async function initManagerAuth() {
+  try {
+    const { data } = await sbQuery(sb => sb.from('approvers').select('id,name').order('name'));
+    const sel = document.getElementById('mgr-name-select');
+    sel.innerHTML = '<option value="">이름 선택</option>' + (data||[]).map(a => `<option value="${a.id}" data-name="${a.name}">${a.name}</option>`).join('');
+  } catch(e) { console.warn(e); }
+}
+
+function pinPress(d) {
+  if (app.pinBuffer.length >= 4) return;
+  app.pinBuffer += d;
+  updatePinDots('pin-d', app.pinBuffer.length);
+  if (app.pinBuffer.length === 4) setTimeout(verifyManagerPin, 100);
+}
+function pinBackspace() { app.pinBuffer = app.pinBuffer.slice(0,-1); updatePinDots('pin-d', app.pinBuffer.length); }
+function pinClear() { app.pinBuffer = ''; updatePinDots('pin-d', 0); }
+
+async function verifyManagerPin() {
+  const sel = document.getElementById('mgr-name-select');
+  const approverId = sel.value;
+  const errEl = document.getElementById('pin-error');
+  if (!approverId) { errEl.textContent = '이름을 먼저 선택해주세요'; pinClear(); return; }
+  try {
+    const { data } = await app.supabase.from('approvers').select('*').eq('id', approverId).single();
+    if (data && data.pin === app.pinBuffer) {
+      app.mgrApprover = data;
+      app.pinBuffer = '';
+      showScreen('s-manager-list');
+    } else {
+      errEl.textContent = 'PIN이 틀렸어요';
+      app.pinBuffer = '';
+      updatePinDots('pin-d', 0);
+      shakePinDots('pin');
+    }
+  } catch { errEl.textContent = '확인 중 오류가 발생했어요'; app.pinBuffer = ''; updatePinDots('pin-d', 0); }
+}
+
+function shakePinDots(prefix) {
+  const el = document.getElementById(`${prefix}-display`);
+  if (!el) return;
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'shake .4s ease';
+}
+
+async function loadManagerSessions() {
+  if (!app.supabase) return;
+  const today = toDateStr(new Date());
+  document.getElementById('mgr-list-sub').textContent = app.mgrApprover?.name ? `${app.mgrApprover.name} 로그인됨` : '';
+  try {
+    const { data } = await app.supabase
+      .from('move_sessions')
+      .select('*, session_items(count)')
+      .eq('session_date', today)
+      .order('created_at', { ascending: false });
+
+    const pending  = (data||[]).filter(s => s.status === 'pending');
+    const approved = (data||[]).filter(s => s.status !== 'pending');
+
+    const pendingEl  = document.getElementById('mgr-pending-list');
+    const approvedEl = document.getElementById('mgr-approved-list');
+
+    pendingEl.innerHTML  = pending.length  ? pending.map(s => sessionCardHTML(s, true)).join('') : '<div class="empty" style="padding:20px"><div class="empty-text">대기 중인 세션이 없어요</div></div>';
+    approvedEl.innerHTML = approved.length ? approved.map(s => sessionCardHTML(s, true)).join('') : '<div class="empty" style="padding:20px"><div class="empty-text">오늘 완료된 세션이 없어요</div></div>';
+  } catch(e) { console.warn(e); }
+}
+
+async function viewSession(sessionId) {
+  try {
+    const { data: session } = await app.supabase.from('move_sessions').select('*').eq('id', sessionId).single();
+    const { data: items   } = await app.supabase.from('session_items').select('*').eq('session_id', sessionId).order('scanned_at', { ascending: true });
+    app.selectedSession = session;
+    renderSessionDetail(session, items || []);
+    showScreen('s-session-detail');
+  } catch(e) { showToast('세션을 불러오지 못했어요', 'error'); }
+}
+
+function renderSessionDetail(session, items) {
+  const isPending = session.status === 'pending';
+  const total = items.length;
+  const valid = items.filter(i => !i.is_error).length;
+  const errors = items.filter(i => i.is_error).length;
+
+  document.getElementById('detail-title').textContent = `${session.from_location} → ${session.to_location}`;
+  document.getElementById('detail-sub').textContent = `${formatDate(session.session_date)} · ${session.created_by}`;
+
+  const badgeMap = { pending:'pending', approved:'approved', correction:'correction' };
+  const badgeLbl = { pending:'대기중', approved:'완료', correction:'정정완료' };
+  document.getElementById('detail-badge-wrap').innerHTML = `<span class="badge badge-${badgeMap[session.status]||'pending'} badge-dot">${badgeLbl[session.status]||session.status}</span>`;
+
+  document.getElementById('detail-stats').innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:900;color:var(--accent);font-family:var(--font-mono)">${total}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">전체</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:900;color:var(--success);font-family:var(--font-mono)">${valid}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">정상</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:900;color:${errors>0?'var(--danger)':'var(--text3)'};font-family:var(--font-mono)">${errors}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">오류</div>
+    </div>
+  `;
+
+  document.getElementById('detail-items-list').innerHTML = items.map((item,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text3);width:24px;text-align:right">${i+1}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;${item.is_error?'color:var(--danger)':''}">${item.is_error ? `⚠ ${item.barcode}` : (item.product_name||item.barcode)}</div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${item.barcode}${item.category?` · ${item.category}`:''}${item.price?` · ${item.price}`:''}</div>
+        ${item.is_error ? `<div style="font-size:11px;color:var(--danger)">${item.error_msg||''}</div>` : ''}
+      </div>
+      <span style="font-size:11px;color:var(--text3)">${item.scanned_by}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('detail-approve-warning').style.display = isPending && app.mgrApprover ? 'block' : 'none';
+  document.getElementById('detail-approve-btn-area').style.display = isPending && app.mgrApprover ? 'block' : 'none';
+  document.getElementById('detail-approved-info').style.display = !isPending ? 'block' : 'none';
+  if (!isPending) {
+    document.getElementById('detail-approved-info').textContent =
+      `✓ ${session.approved_by}이(가) ${formatTime(session.approved_at)}에 승인 완료`;
+  }
+}
+
+function startApprove() {
+  if (!app.selectedSession || !app.mgrApprover) return;
+  app.apinBuffer = '';
+  updatePinDots('apin-d', 0);
+  document.getElementById('apin-error').textContent = '';
+  document.getElementById('apin-loading').style.display = 'none';
+  document.getElementById('approve-summary').innerHTML = `
+    <div style="font-size:13px;color:var(--text2);margin-bottom:6px">승인 내용</div>
+    <div style="font-weight:700;font-size:15px">${app.selectedSession.from_location} → ${app.selectedSession.to_location}</div>
+    <div style="font-size:13px;color:var(--text2);margin-top:4px">승인자: ${app.mgrApprover.name}</div>
+  `;
+  showScreen('s-approve-confirm');
+}
+
+function apinPress(d) {
+  if (app.apinBuffer.length >= 4) return;
+  app.apinBuffer += d;
+  updatePinDots('apin-d', app.apinBuffer.length);
+  if (app.apinBuffer.length === 4) setTimeout(executeApproval, 100);
+}
+function apinBackspace() { app.apinBuffer = app.apinBuffer.slice(0,-1); updatePinDots('apin-d', app.apinBuffer.length); }
+function apinClear() { app.apinBuffer = ''; updatePinDots('apin-d', 0); }
+
+async function executeApproval() {
+  const errEl = document.getElementById('apin-error');
+  const ldg   = document.getElementById('apin-loading');
+
+  if (app.apinBuffer !== app.mgrApprover.pin) {
+    errEl.textContent = 'PIN이 틀렸어요';
+    app.apinBuffer = '';
+    updatePinDots('apin-d', 0);
+    return;
+  }
+
+  errEl.textContent = '';
+  ldg.style.display = 'flex';
+
+  try {
+    // Get items
+    const { data: items } = await app.supabase.from('session_items')
+      .select('*').eq('session_id', app.selectedSession.id);
+
+    // Update excel
+    await updateExcelForSession(app.selectedSession, items || []);
+
+    // Update session status
+    await app.supabase.from('move_sessions').update({
+      status: 'approved',
+      approved_by: app.mgrApprover.name,
+      approved_at: new Date().toISOString(),
+    }).eq('id', app.selectedSession.id);
+
+    ldg.style.display = 'none';
+
+    // Generate slack summary
+    generateSlackSummary(app.selectedSession, items || []);
+    showScreen('s-slack-summary');
+
+  } catch(e) {
+    ldg.style.display = 'none';
+    errEl.textContent = `오류: ${e.message}`;
+    app.apinBuffer = '';
+    updatePinDots('apin-d', 0);
+  }
+}
+
+function generateSlackSummary(session, items) {
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}.${pad(today.getMonth()+1)}.${pad(today.getDate())}`;
+  const valid = items.filter(i => !i.is_error);
+  const errors = items.filter(i => i.is_error);
+  const members = [...new Set(items.map(i => i.scanned_by))];
+  const prefix = session.is_correction ? '[정정이동]' : '[이동보고]';
+
+  let text = `${prefix} ${session.from_location} → ${session.to_location}  |  ${dateStr}
+담당: ${members.join(', ')}  /  승인: ${app.mgrApprover.name}
+총 ${valid.length}벌${errors.length > 0 ? ` (오류 ${errors.length}건 제외)` : ''}`;
+
+  if (session.is_correction && session.correction_reason) {
+    text += `\n사유: ${session.correction_reason}`;
+  }
+
+  text += `\n${'─'.repeat(30)}`;
+  valid.forEach(item => {
+    text += `\n${item.barcode}${item.product_name ? '  ' + item.product_name : ''}`;
+  });
+
+  if (errors.length > 0) {
+    text += `\n\n⚠ 오류 (엑셀 미반영)\n`;
+    errors.forEach(item => { text += `${item.barcode}  ${item.error_msg||''}\n`; });
+  }
+
+  document.getElementById('slack-text').textContent = text;
+}
+
+function copySlack() {
+  const text = document.getElementById('slack-text').textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('복사됐어요!', 'success')).catch(() => showToast('복사 실패', 'error'));
+}
+
+// ══════════════════════════════════════════
+//  CORRECTION
+// ══════════════════════════════════════════
+async function startCorrection() {
+  if (!app.selectedSession) return;
+  document.getElementById('corr-session-id').value = app.selectedSession.id;
+
+  const { data } = await sbQuery(sb => sb.from('locations').select('*').eq('is_active', true).order('name'));
+  const locs = data || [];
+  ['corr-from','corr-to'].forEach(id => {
+    document.getElementById(id).innerHTML = '<option value="">선택</option>' + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+  });
+  document.getElementById('corr-from').value = app.selectedSession.to_location;
+  showScreen('s-correction');
+}
+
+async function submitCorrection() {
+  const from   = document.getElementById('corr-from').value;
+  const to     = document.getElementById('corr-to').value;
+  const reason = document.getElementById('corr-reason').value.trim();
+  if (!from || !to || !reason) { showToast('모든 항목을 입력해주세요', 'error'); return; }
+  if (from === to) { showToast('출발지와 도착지가 같아요', 'error'); return; }
+
+  // Get original items
+  const { data: origItems } = await app.supabase.from('session_items')
+    .select('*').eq('session_id', app.selectedSession.id);
+
+  // Create correction session
+  const { data: newSess } = await app.supabase.from('move_sessions').insert({
+    session_date: toDateStr(new Date()),
+    from_location: from, to_location: to,
+    status: 'pending',
+    created_by: app.mgrApprover?.name || '정정',
+    is_correction: true,
+    correction_reason: reason,
+  }).select().single();
+
+  // Copy items to new session
+  if (newSess && origItems) {
+    await app.supabase.from('session_items').insert(
+      origItems.filter(i => !i.is_error).map(i => ({
+        session_id: newSess.id, barcode: i.barcode,
+        product_name: i.product_name, category: i.category,
+        price: i.price, current_location: i.current_location,
+        scanned_by: app.mgrApprover?.name || '정정',
+      }))
+    );
+  }
+
+  showToast('정정 세션이 생성됐어요. 승인해주세요', 'success');
+  app.selectedSession = newSess;
+  await viewSession(newSess.id);
+}
+
+// ══════════════════════════════════════════
+//  LOOKUP
+// ══════════════════════════════════════════
+async function doLookup() {
+  const barcode = document.getElementById('lookup-input').value.trim();
+  if (!barcode) return;
+  const el = document.getElementById('lookup-result');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>조회 중...</div>';
+
+  try {
+    const { data } = await app.supabase
+      .from('session_items')
+      .select('*, move_sessions(*)')
+      .eq('barcode', barcode)
+      .order('scanned_at', { ascending: false });
+
+    if (!data || data.length === 0) {
+      el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">이동 기록이 없어요<br>${barcode}</div></div>`;
+      return;
+    }
+
+    const sorted = [...data].sort((a,b) => new Date(a.scanned_at) - new Date(b.scanned_at));
+    const lastItem = sorted[sorted.length-1];
+    const currentLoc = lastItem.move_sessions?.to_location || '?';
+
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-row"><span class="card-row-label">바코드</span><span class="card-row-value" style="font-family:var(--font-mono)">${barcode}</span></div>
+        <div class="card-row"><span class="card-row-label">상품명</span><span class="card-row-value">${lastItem.product_name || '-'}</span></div>
+        <div class="card-row"><span class="card-row-label">현재 위치</span><span class="card-row-value" style="color:var(--accent)">${currentLoc}</span></div>
+        <div class="card-row"><span class="card-row-label">이동 횟수</span><span class="card-row-value" style="font-family:var(--font-mono)">${sorted.length}회</span></div>
+      </div>
+      <h2 class="section-title">이동 경로</h2>
+      <div class="card"><div class="card-body" style="padding:8px 16px">
+        ${sorted.map((item, i) => {
+          const s = item.move_sessions;
+          const isLast = i === sorted.length - 1;
+          return `<div class="history-item">
+            <div class="history-line" style="${isLast?'':''}"></div>
+            <div class="history-info">
+              <div class="history-route">${s?.from_location||'?'} → ${s?.to_location||'?'}${s?.is_correction?`<span class="correction-tag">정정</span>`:''}${s?.status==='pending'?`<span class="correction-tag" style="color:var(--accent)">대기중</span>`:''}</div>
+              <div class="history-date">${formatDate(s?.session_date)} · ${formatTime(item.scanned_at)}</div>
+              <div class="history-who">${item.scanned_by} 스캔${s?.approved_by ? ` / ${s.approved_by} 승인` : ''}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div></div>
+    `;
+  } catch(e) { el.innerHTML = `<div style="color:var(--danger);padding:16px;font-size:14px">오류: ${e.message}</div>`; }
+}
+
+// ══════════════════════════════════════════
+//  ADMIN AUTH
+// ══════════════════════════════════════════
+async function startAdminFlow() {
+  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); return; }
+  // 승인자가 아직 한 명도 없으면 바로 진입 (초기 설정 허용)
+  const { data } = await app.supabase.from('approvers').select('id').limit(1);
+  if (!data || data.length === 0) {
+    app.adminAuthed = true;
+    showScreen('s-admin');
+    return;
+  }
+  app.adminPinBuffer = '';
+  updatePinDots('adm-d', 0);
+  document.getElementById('admin-pin-error').textContent = '';
+  showScreen('s-admin-auth');
+}
+
+async function initAdminAuth() {
+  try {
+    const { data } = await sbQuery(sb => sb.from('approvers').select('id,name').order('name'));
+    const sel = document.getElementById('admin-name-select');
+    sel.innerHTML = '<option value="">이름 선택</option>' + (data||[]).map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  } catch(e) { console.warn(e); }
+}
+
+function adminPinPress(d) {
+  if (app.adminPinBuffer.length >= 4) return;
+  app.adminPinBuffer += d;
+  updatePinDots('adm-d', app.adminPinBuffer.length);
+  if (app.adminPinBuffer.length === 4) setTimeout(verifyAdminPin, 100);
+}
+function adminPinBackspace() { app.adminPinBuffer = app.adminPinBuffer.slice(0,-1); updatePinDots('adm-d', app.adminPinBuffer.length); }
+function adminPinClear() { app.adminPinBuffer = ''; updatePinDots('adm-d', 0); }
+
+async function verifyAdminPin() {
+  const sel = document.getElementById('admin-name-select');
+  const approverId = sel.value;
+  const errEl = document.getElementById('admin-pin-error');
+  if (!approverId) { errEl.textContent = '이름을 먼저 선택해주세요'; adminPinClear(); return; }
+  try {
+    const { data } = await app.supabase.from('approvers').select('*').eq('id', approverId).single();
+    if (data && data.pin === app.adminPinBuffer) {
+      app.adminAuthed = true;
+      app.adminPinBuffer = '';
+      showScreen('s-admin');
+    } else {
+      errEl.textContent = 'PIN이 틀렸어요';
+      app.adminPinBuffer = '';
+      updatePinDots('adm-d', 0);
+      shakePinDots('admin-pin');
+    }
+  } catch { errEl.textContent = '확인 중 오류가 발생했어요'; app.adminPinBuffer = ''; updatePinDots('adm-d', 0); }
+}
+
+// ══════════════════════════════════════════
+//  ADMIN
+// ══════════════════════════════════════════
+async function loadAdmin() {
+  if (!app.supabase) return;
+  if (!app.adminAuthed) { showScreen('s-admin-auth', false); return; }
+  try {
+    const [locData, aprData] = await Promise.all([
+      app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name'),
+      app.supabase.from('approvers').select('id,name').order('name'),
+    ]);
+    renderLocations(locData.data || []);
+    renderApprovers(aprData.data || []);
+  } catch(e) { console.warn(e); }
+}
+
+function renderLocations(locs) {
+  const el = document.getElementById('location-list');
+  if (!locs.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0">매장이 없어요</div>'; return; }
+  el.innerHTML = locs.map(l => `
+    <div class="location-item">
+      <span class="location-name ${!l.is_active ? 'location-inactive' : ''}">${l.name}</span>
+      <div class="loc-actions">
+        <button class="loc-btn" onclick="toggleLocation('${l.id}', ${l.is_active})">${l.is_active ? '비활성화' : '활성화'}</button>
+        <button class="loc-btn danger" onclick="deleteLocation('${l.id}')">삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderApprovers(list) {
+  const el = document.getElementById('approver-list');
+  if (!list.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0">승인자가 없어요</div>'; return; }
+  el.innerHTML = list.map(a => `
+    <div class="location-item">
+      <span class="location-name">${a.name}</span>
+      <div class="loc-actions">
+        <button class="loc-btn danger" onclick="deleteApprover('${a.id}')">삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addLocation() {
+  const name = document.getElementById('new-location-input').value.trim();
+  if (!name) return;
+  await sbQuery(sb => sb.from('locations').insert({ name }));
+  document.getElementById('new-location-input').value = '';
+  showToast(`'${name}' 추가됐어요`, 'success');
+  loadAdmin();
+}
+
+async function toggleLocation(id, isActive) {
+  await sbQuery(sb => sb.from('locations').update({ is_active: !isActive }).eq('id', id));
+  loadAdmin();
+}
+
+async function deleteLocation(id) {
+  showModal('매장 삭제', '정말 삭제할까요?\n과거 이동 기록의 위치 이름은 유지됩니다.',
+    [
+      { label:'삭제', class:'btn-danger', fn: async () => { closeModal(); await sbQuery(sb => sb.from('locations').delete().eq('id', id)); loadAdmin(); showToast('삭제됐어요', 'success'); }},
+      { label:'취소', class:'btn-secondary', fn: closeModal }
+    ]);
+}
+
+async function addApprover() {
+  const name = document.getElementById('new-approver-name').value.trim();
+  const pin  = document.getElementById('new-approver-pin').value.trim();
+  if (!name || !pin) { showToast('이름과 PIN을 입력해주세요', 'error'); return; }
+  if (!/^\d{4}$/.test(pin)) { showToast('PIN은 숫자 4자리여야 해요', 'error'); return; }
+  await sbQuery(sb => sb.from('approvers').insert({ name, pin }));
+  document.getElementById('new-approver-name').value = '';
+  document.getElementById('new-approver-pin').value  = '';
+  showToast(`'${name}' 추가됐어요`, 'success');
+  loadAdmin();
+}
+
+async function deleteApprover(id) {
+  showModal('승인자 삭제', '정말 삭제할까요?',
+    [
+      { label:'삭제', class:'btn-danger', fn: async () => { closeModal(); await sbQuery(sb => sb.from('approvers').delete().eq('id', id)); loadAdmin(); showToast('삭제됐어요', 'success'); }},
+      { label:'취소', class:'btn-secondary', fn: closeModal }
+    ]);
+}
+
+// ══════════════════════════════════════════
+//  MODAL / TOAST
+// ══════════════════════════════════════════
+function showModal(title, desc, actions) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-desc').style.whiteSpace = 'pre-line';
+  document.getElementById('modal-desc').textContent = desc;
+  document.getElementById('modal-actions').innerHTML = actions.map((a,i) =>
+    `<button class="btn ${a.class}" onclick="__modalAction(${i})">${a.label}</button>`
+  ).join('');
+  window.__modalActions = actions.map(a => a.fn);
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('modal').style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  setTimeout(() => { document.getElementById('modal').style.display = 'none'; }, 200);
+}
+window.__modalAction = (i) => { closeModal(); window.__modalActions[i]?.(); };
+
+let toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show${type ? ' ' + type : ''}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+}
+
+// ══════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════
+function pad(n) { return String(n).padStart(2, '0'); }
+function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function formatDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`;
+}
+function formatTime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// close modal on overlay click
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// Shake animation for PIN
+const styleEl = document.createElement('style');
+styleEl.textContent = `@keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}`;
+document.head.appendChild(styleEl);
+</script>
+</body>
+</html>
