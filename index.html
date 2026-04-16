@@ -345,7 +345,14 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div class="divider"></div>
     <h2 class="section-title" style="margin-top:0">Supabase 테이블 생성 SQL</h2>
     <div class="settings-hint" style="margin-bottom:8px">아직 테이블이 없다면 Supabase → SQL Editor에서 아래 SQL을 실행하세요.</div>
-    <div class="sql-box">create table locations (
+    <div class="sql-box">create table handlers (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+
+create table locations (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   is_active boolean default true,
@@ -401,7 +408,7 @@ alter publication supabase_realtime add table session_items;</div>
   <div class="content">
     <div class="form-group">
       <label class="form-label">담당자 이름</label>
-      <input class="form-input" id="scan-name" placeholder="이름 입력" autocomplete="off">
+      <select class="form-input form-select" id="scan-name"></select>
     </div>
     <div class="form-group">
       <label class="form-label">출발지</label>
@@ -686,6 +693,15 @@ alter publication supabase_realtime add table session_items;</div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <input class="form-input" id="new-location-input" placeholder="새 매장 이름" style="flex:1">
       <button class="btn btn-primary btn-sm" onclick="addLocation()" style="width:60px">추가</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <h2 class="section-title" style="margin-top:0">물류팀 담당자</h2>
+    <div id="handler-list"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <input class="form-input" id="new-handler-input" placeholder="담당자 이름" style="flex:1">
+      <button class="btn btn-primary btn-sm" onclick="addHandler()" style="width:60px">추가</button>
     </div>
 
     <div class="divider"></div>
@@ -1002,16 +1018,15 @@ async function homeSessionClick(sessionId, status) {
 
       showModal(
         '세션 참여',
-        `${session.from_location} → ${session.to_location}\n\n참여할 담당자 이름을 입력하세요.`,
+        `${session.from_location} → ${session.to_location}\n\n참여할 담당자를 선택하세요.`,
         [{ label: '참여하기', class: 'btn-primary', fn: async () => {
-            const name = document.getElementById('join-name-input').value.trim();
-            if (!name) { showToast('이름을 입력해주세요', 'error'); return; }
+            const name = document.getElementById('join-name-select').value;
+            if (!name) { showToast('담당자를 선택해주세요', 'error'); return; }
             closeModal();
             app.scanUser = name;
             app.scanFrom = session.from_location;
             app.scanTo = session.to_location;
             app.currentSession = session;
-            // 엑셀 로딩
             const ldg = document.createElement('div');
             ldg.className = 'loading'; ldg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;';
             ldg.innerHTML = '<div class="spinner"></div><span style="color:#fff;margin-left:8px">엑셀 파일 불러오는 중...</span>';
@@ -1027,17 +1042,16 @@ async function homeSessionClick(sessionId, status) {
         }},
         { label: '취소', class: 'btn-secondary', fn: closeModal }]
       );
-      // 모달 안에 이름 입력 필드 동적으로 삽입
-      setTimeout(() => {
+      // 담당자 드롭다운 동적 삽입
+      setTimeout(async () => {
         const desc = document.getElementById('modal-desc');
-        const input = document.createElement('input');
-        input.id = 'join-name-input';
-        input.className = 'form-input';
-        input.placeholder = '이름 입력';
-        input.style.marginTop = '12px';
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') document.querySelector('#modal-actions .btn-primary')?.click(); });
-        desc.appendChild(input);
-        setTimeout(() => input.focus(), 100);
+        const { data: handlers } = await app.supabase.from('handlers').select('*').eq('is_active', true).order('name');
+        const sel = document.createElement('select');
+        sel.id = 'join-name-select';
+        sel.className = 'form-input form-select';
+        sel.style.marginTop = '12px';
+        sel.innerHTML = '<option value="">담당자 선택</option>' + (handlers||[]).map(h => `<option value="${h.name}">${h.name}</option>`).join('');
+        desc.appendChild(sel);
       }, 50);
 
     } catch(e) { showToast('오류: ' + e.message, 'error'); }
@@ -1107,12 +1121,20 @@ async function startScanFlow() {
 
 async function initScanInfo() {
   try {
-    const { data } = await sbQuery(sb => sb.from('locations').select('*').eq('is_active', true).order('name'));
-    const locs = data || [];
-    const fromSel = document.getElementById('scan-from');
-    const toSel   = document.getElementById('scan-to');
-    fromSel.innerHTML = '<option value="">출발지 선택</option>' + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
-    toSel.innerHTML   = '<option value="">도착지 선택</option>' + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+    const [locRes, handlerRes] = await Promise.all([
+      app.supabase.from('locations').select('*').eq('is_active', true).order('name'),
+      app.supabase.from('handlers').select('*').eq('is_active', true).order('name'),
+    ]);
+    const locs     = locRes.data     || [];
+    const handlers = handlerRes.data || [];
+
+    const nameSel  = document.getElementById('scan-name');
+    const fromSel  = document.getElementById('scan-from');
+    const toSel    = document.getElementById('scan-to');
+
+    nameSel.innerHTML  = '<option value="">담당자 선택</option>' + handlers.map(h => `<option value="${h.name}">${h.name}</option>`).join('');
+    fromSel.innerHTML  = '<option value="">출발지 선택</option>'  + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+    toSel.innerHTML    = '<option value="">도착지 선택</option>'  + locs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
   } catch(e) { console.warn(e); }
 }
 
@@ -1122,7 +1144,7 @@ async function submitScanInfo() {
   const to   = document.getElementById('scan-to').value;
   const errEl = document.getElementById('scan-info-error');
 
-  if (!name) { errEl.textContent = '이름을 입력해주세요'; errEl.style.display='block'; return; }
+  if (!name) { errEl.textContent = '담당자를 선택해주세요'; errEl.style.display='block'; return; }
   if (!from) { errEl.textContent = '출발지를 선택해주세요'; errEl.style.display='block'; return; }
   if (!to)   { errEl.textContent = '도착지를 선택해주세요'; errEl.style.display='block'; return; }
   if (from === to) { errEl.textContent = '출발지와 도착지가 같아요'; errEl.style.display='block'; return; }
@@ -2273,17 +2295,55 @@ async function loadAdmin() {
   if (!app.supabase) return;
   if (!app.adminAuthed) { showScreen('s-admin-auth', false); return; }
   try {
-    const [locData, aprData] = await Promise.all([
+    const [locData, handlerData, aprData] = await Promise.all([
       app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name'),
+      app.supabase.from('handlers').select('*').order('is_active', { ascending: false }).order('name'),
       app.supabase.from('approvers').select('id,name').order('name'),
     ]);
     renderLocations(locData.data || []);
+    renderHandlers(handlerData.data || []);
     renderApprovers(aprData.data || []);
   } catch(e) { console.warn(e); }
 }
 
+function renderHandlers(list) {
+  const el = document.getElementById('handler-list');
+  if (!list.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0">담당자가 없어요</div>'; return; }
+  el.innerHTML = list.map(h => `
+    <div class="location-item">
+      <span class="location-name ${!h.is_active ? 'location-inactive' : ''}">${h.name}</span>
+      <div class="loc-actions">
+        <button class="loc-btn" onclick="toggleHandler('${h.id}', ${h.is_active})">${h.is_active ? '비활성화' : '활성화'}</button>
+        <button class="loc-btn danger" onclick="deleteHandler('${h.id}', '${h.name}')">삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addHandler() {
+  const name = document.getElementById('new-handler-input').value.trim();
+  if (!name) return;
+  await sbQuery(sb => sb.from('handlers').insert({ name }));
+  document.getElementById('new-handler-input').value = '';
+  showToast(`'${name}' 추가됐어요`, 'success');
+  loadAdmin();
+}
+
+async function toggleHandler(id, isActive) {
+  await sbQuery(sb => sb.from('handlers').update({ is_active: !isActive }).eq('id', id));
+  loadAdmin();
+}
+
+async function deleteHandler(id, name) {
+  showModal('담당자 삭제', `'${name}'을(를) 삭제할까요?\n기존 이동 로그의 이름은 유지됩니다.`,
+    [
+      { label: '삭제', class: 'btn-danger', fn: async () => { closeModal(); await sbQuery(sb => sb.from('handlers').delete().eq('id', id)); loadAdmin(); showToast('삭제됐어요', 'success'); }},
+      { label: '취소', class: 'btn-secondary', fn: closeModal }
+    ]);
+}
+
+
 function renderLocations(locs) {
-  const el = document.getElementById('location-list');
   if (!locs.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0">매장이 없어요</div>'; return; }
   el.innerHTML = locs.map(l => `
     <div class="location-item">
