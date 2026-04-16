@@ -1569,7 +1569,7 @@ async function loadExcelFromDropbox() {
   if (!fileRes.ok) throw new Error(`파일 다운로드 실패 (${fileRes.status})`);
 
   const buffer = await fileRes.arrayBuffer();
-  const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true });
+  const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true, cellStyles: true });
   app.excelWorkbook = wb;
 
   const sheet = wb.Sheets['입고'];
@@ -1588,7 +1588,7 @@ async function loadExcelFromDropbox() {
 
 async function uploadExcelToDropbox(workbook) {
   const { dropboxToken } = app.settings;
-  const data = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  const data = XLSX.write(workbook, { type: 'array', bookType: 'xlsx', compression: true });
   const uploadPath = app.excelFilePath || getExcelFilePath();
 
   // 업로드는 Content-Type: octet-stream이므로 Dropbox-API-Arg 헤더 필요
