@@ -903,7 +903,7 @@ async function loadHomeSessions() {
       el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">오늘 진행된 세션이 없어요</div></div>';
       return;
     }
-    el.innerHTML = data.map(s => sessionCardHTML(s, false)).join('');
+    el.innerHTML = data.map(s => sessionCardHTML(s, true)).join('');
   } catch(e) { console.warn(e); }
 }
 
