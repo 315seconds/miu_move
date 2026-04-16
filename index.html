@@ -563,6 +563,7 @@ alter publication supabase_realtime add table session_items;</div>
     <div class="topbar-back" onclick="showScreen('s-home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div style="flex:1"><div class="topbar-title">이동 승인</div><div class="topbar-sub" id="mgr-list-sub"></div></div>
     <div class="topbar-action" onclick="loadManagerSessions()">↻ 새로고침</div>
+    <div class="topbar-action" onclick="generateDailySummary()" style="margin-left:8px">📋 요약</div>
   </div>
   <div class="content">
     <h2 class="section-title">대기 중인 세션</h2>
@@ -636,13 +637,13 @@ alter publication supabase_realtime add table session_items;</div>
 <!-- ════════════════ SLACK SUMMARY ════════════════ -->
 <div class="screen" id="s-slack-summary">
   <div class="topbar">
-    <div class="topbar-back" onclick="showScreen('s-home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div><div class="topbar-title">슬랙 요약문</div><div class="topbar-sub">이동보고 채널에 붙여넣기</div></div>
   </div>
   <div class="content">
     <div class="slack-box" id="slack-text"></div>
     <button class="btn btn-primary" onclick="copySlack()" style="margin-top:16px">📋 복사하기</button>
-    <button class="btn btn-secondary" onclick="showScreen('s-home')" style="margin-top:10px">홈으로</button>
+    <button class="btn btn-secondary" onclick="goBack()" style="margin-top:10px">돌아가기</button>
   </div>
 </div>
 
@@ -1845,7 +1846,7 @@ async function executeApproval() {
 
     // Generate slack summary
     generateSlackSummary(app.selectedSession, items || []);
-    showScreen('s-slack-summary');
+    showScreen('s-manager-list');
 
   } catch(e) {
     ldg.style.display = 'none';
@@ -1883,6 +1884,66 @@ function generateSlackSummary(session, items) {
 
   document.getElementById('slack-text').textContent = text;
 }
+
+async function generateDailySummary() {
+  if (!app.supabase) return;
+  const today = toDateStr(new Date());
+  const dateStr = today.replace(/-/g, '.');
+
+  try {
+    // 오늘 승인된 세션 전체 조회
+    const { data: sessions } = await app.supabase
+      .from('move_sessions')
+      .select('*')
+      .eq('session_date', today)
+      .eq('status', 'approved')
+      .order('approved_at', { ascending: true });
+
+    if (!sessions || sessions.length === 0) {
+      showToast('오늘 승인된 세션이 없어요', 'error');
+      return;
+    }
+
+    // 세션별 아이템 조회
+    const ids = sessions.map(s => s.id);
+    const { data: allItems } = await app.supabase
+      .from('session_items')
+      .select('*')
+      .in('session_id', ids)
+      .eq('is_submitted', true)
+      .eq('is_error', false);
+
+    const itemMap = {};
+    (allItems || []).forEach(i => {
+      if (!itemMap[i.session_id]) itemMap[i.session_id] = [];
+      itemMap[i.session_id].push(i);
+    });
+
+    let text = `[이동보고] ${dateStr} 일일 요약\n`;
+    text += `${'═'.repeat(30)}\n`;
+
+    let totalCount = 0;
+    sessions.forEach(s => {
+      const items = itemMap[s.id] || [];
+      const members = [...new Set(items.map(i => i.scanned_by))];
+      text += `\n▶ ${s.from_location} → ${s.to_location}  (${items.length}벌)\n`;
+      text += `   담당: ${members.join(', ')}  /  승인: ${s.approved_by} ${formatTime(s.approved_at)}\n`;
+      items.forEach(i => {
+        text += `   ${i.barcode}${i.product_name ? '  ' + i.product_name : ''}\n`;
+      });
+      totalCount += items.length;
+    });
+
+    text += `\n${'─'.repeat(30)}\n`;
+    text += `총 ${sessions.length}건  ${totalCount}벌 이동 완료`;
+
+    // 슬랙 요약 화면에 표시
+    document.getElementById('slack-text').textContent = text;
+    showScreen('s-slack-summary');
+
+  } catch(e) { showToast('오류: ' + e.message, 'error'); }
+}
+
 
 function copySlack() {
   const text = document.getElementById('slack-text').textContent;
