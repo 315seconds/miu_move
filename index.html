@@ -582,7 +582,9 @@ alter publication supabase_realtime add table session_items;</div>
       <button class="btn btn-ghost" style="margin-top:10px" onclick="startCorrection()">
         정정 이동으로 처리
       </button>
-      <button class="btn btn-danger" style="margin-top:10px" onclick="deleteSession()">
+    </div>
+    <div id="detail-delete-btn-area" style="margin-top:10px;display:none">
+      <button class="btn btn-danger" onclick="deleteSession()">
         🗑 세션 삭제
       </button>
     </div>
@@ -1751,6 +1753,7 @@ function renderSessionDetail(session, items) {
   const hasSubmitted = submitted.length > 0;
   document.getElementById('detail-approve-warning').style.display = isPending && app.mgrApprover ? 'block' : 'none';
   document.getElementById('detail-approve-btn-area').style.display = isPending && app.mgrApprover && hasSubmitted ? 'block' : 'none';
+  document.getElementById('detail-delete-btn-area').style.display  = isPending && app.mgrApprover ? 'block' : 'none';
   document.getElementById('detail-approved-info').style.display = !isPending ? 'block' : 'none';
   if (!isPending) {
     document.getElementById('detail-approved-info').textContent =
