@@ -806,12 +806,28 @@ function initSupabase() {
   const { supabaseUrl, supabaseKey } = app.settings;
   if (supabaseUrl && supabaseKey) {
     try {
+      if (!window.supabase) throw new Error('Supabase 라이브러리 로드 실패');
       app.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
       document.getElementById('home-config-warning').style.display = 'none';
-    } catch(e) { console.warn('Supabase init failed', e); }
+    } catch(e) {
+      app.supabase = null;
+      document.getElementById('home-config-warning').style.display = 'block';
+      document.getElementById('home-config-warning').textContent = '⚠ Supabase 연결 실패: ' + e.message;
+    }
   } else {
     document.getElementById('home-config-warning').style.display = 'block';
+    document.getElementById('home-config-warning').textContent = '⚠ Supabase 또는 Dropbox 설정이 필요해요. 우측 상단 설정을 눌러주세요.';
   }
+}
+
+function requireSupabase() {
+  if (!app.supabase) {
+    showModal('연결 필요', 'Supabase가 연결되지 않았어요.\n설정 화면에서 URL과 Key를 확인해주세요.',
+      [{ label: '설정으로', class: 'btn-primary', fn: () => { closeModal(); showScreen('s-settings'); } },
+       { label: '닫기', class: 'btn-secondary', fn: closeModal }]);
+    return false;
+  }
+  return true;
 }
 
 async function sbQuery(fn) {
@@ -823,9 +839,11 @@ async function sbQuery(fn) {
 //  NAVIGATION
 // ══════════════════════════════════════════
 function showScreen(id, pushHistory = true) {
+  const el = document.getElementById(id);
+  if (!el) { console.error('화면을 찾을 수 없어요:', id); return; }
   if (pushHistory && id !== app.currentScreen) app.navStack.push(app.currentScreen);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
   app.currentScreen = id;
   window.scrollTo(0, 0);
   onScreenEnter(id);
@@ -1278,11 +1296,13 @@ async function updateExcelForSession(session, items) {
 //  MANAGER FLOW
 // ══════════════════════════════════════════
 async function startManagerFlow() {
-  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); return; }
-  app.pinBuffer = '';
-  updatePinDots('pin-d', 0);
-  document.getElementById('pin-error').textContent = '';
-  showScreen('s-manager-auth');
+  if (!requireSupabase()) return;
+  try {
+    app.pinBuffer = '';
+    updatePinDots('pin-d', 0);
+    document.getElementById('pin-error').textContent = '';
+    showScreen('s-manager-auth');
+  } catch(e) { showToast('오류: ' + e.message, 'error'); }
 }
 
 async function initManagerAuth() {
@@ -1620,18 +1640,19 @@ async function doLookup() {
 //  ADMIN AUTH
 // ══════════════════════════════════════════
 async function startAdminFlow() {
-  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); return; }
-  // 승인자가 아직 한 명도 없으면 바로 진입 (초기 설정 허용)
-  const { data } = await app.supabase.from('approvers').select('id').limit(1);
-  if (!data || data.length === 0) {
-    app.adminAuthed = true;
-    showScreen('s-admin');
-    return;
-  }
-  app.adminPinBuffer = '';
-  updatePinDots('adm-d', 0);
-  document.getElementById('admin-pin-error').textContent = '';
-  showScreen('s-admin-auth');
+  if (!requireSupabase()) return;
+  try {
+    const { data } = await app.supabase.from('approvers').select('id').limit(1);
+    if (!data || data.length === 0) {
+      app.adminAuthed = true;
+      showScreen('s-admin');
+      return;
+    }
+    app.adminPinBuffer = '';
+    updatePinDots('adm-d', 0);
+    document.getElementById('admin-pin-error').textContent = '';
+    showScreen('s-admin-auth');
+  } catch(e) { showToast('오류: ' + e.message, 'error'); }
 }
 
 async function initAdminAuth() {
