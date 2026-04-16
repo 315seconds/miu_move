@@ -1207,24 +1207,42 @@ async function enterScanningScreen() {
   document.getElementById('scanning-sub').textContent = app.scanUser;
   document.getElementById('scan-route-display').innerHTML = `<strong>${app.scanFrom}</strong> → <strong>${app.scanTo}</strong>`;
 
-  // Subscribe to realtime
+  // 기존 항목 먼저 로드 (구독보다 먼저 — 중복 방지)
+  const { data } = await app.supabase.from('session_items')
+    .select('*').eq('session_id', app.currentSession.id).order('scanned_at', { ascending: true });
+  if (data) {
+    data.forEach(item => {
+      if (item.scanned_by === app.scanUser) app.scannedItems.push(item);
+      addItemToUI(item, false);
+    });
+  }
+
+  // 실시간 구독 (초기 로드 이후에 구독 — INSERT/DELETE 모두)
   if (app.realtimeSub) { app.supabase.removeChannel(app.realtimeSub); }
   app.realtimeSub = app.supabase
-    .channel(`session-${app.currentSession.id}`)
-    .on('postgres_changes', { event:'INSERT', schema:'public', table:'session_items',
-      filter:`session_id=eq.${app.currentSession.id}` }, payload => {
-      if (payload.new.scanned_by !== app.scanUser) {
-        addItemToUI(payload.new, false);
+    .channel(`session-${app.currentSession.id}-${Date.now()}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'session_items',
+      filter: `session_id=eq.${app.currentSession.id}` }, payload => {
+      // 이미 UI에 있으면 중복 추가 방지
+      if (document.getElementById(`item-${payload.new.id}`)) return;
+      if (payload.new.scanned_by === app.scanUser) {
+        app.scannedItems.push(payload.new);
       }
+      addItemToUI(payload.new, payload.new.scanned_by === app.scanUser);
       updateSessionMemberCount();
-    }).subscribe();
-
-  // Load existing items
-  const { data } = await app.supabase.from('session_items')
-    .select('*').eq('session_id', app.currentSession.id).order('scanned_at', { ascending: false });
-  if (data) {
-    data.forEach(item => addItemToUI(item, false));
-  }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'session_items' },
+      payload => {
+      // 현재 세션 항목인지 확인 후 제거
+      const el = document.getElementById(`item-${payload.old.id}`);
+      if (el) {
+        el.remove();
+        app.scannedItems = app.scannedItems.filter(i => i.id !== payload.old.id);
+        updateScanCount();
+        updateSessionMemberCount();
+      }
+    })
+    .subscribe();
 
   showScreen('s-scanning');
 }
@@ -1382,8 +1400,20 @@ async function updateSessionMemberCount() {
 }
 
 async function submitScan() {
-  const myItems = app.scannedItems.filter(i => i.scanned_by === app.scanUser && !i.is_error);
-  if (myItems.length === 0) { showToast('내가 스캔한 정상 물건이 없어요', 'error'); return; }
+  if (!app.scanUser) { showToast('담당자 이름이 없어요', 'error'); return; }
+
+  // app.scannedItems 대신 DB 직접 조회 → 클라이언트 상태 신뢰 안 함
+  const { data: myItems } = await app.supabase.from('session_items')
+    .select('id')
+    .eq('session_id', app.currentSession.id)
+    .eq('scanned_by', app.scanUser)
+    .eq('is_error', false)
+    .eq('is_submitted', false);
+
+  if (!myItems || myItems.length === 0) {
+    showToast('내가 스캔한 미제출 물건이 없어요', 'error');
+    return;
+  }
 
   showModal('제출 확인',
     `${app.scanFrom} → ${app.scanTo}\n내 스캔 항목 ${myItems.length}벌을 제출해요.\n\n제출 후에는 매니저 승인을 기다려요.`,
@@ -1391,11 +1421,13 @@ async function submitScan() {
       { label: '제출하기', class: 'btn-primary', fn: async () => {
         closeModal();
         try {
-          await app.supabase.from('session_items')
+          const { error } = await app.supabase.from('session_items')
             .update({ is_submitted: true })
             .eq('session_id', app.currentSession.id)
             .eq('scanned_by', app.scanUser)
-            .eq('is_error', false);
+            .eq('is_error', false)
+            .eq('is_submitted', false);
+          if (error) throw new Error(error.message);
           if (app.realtimeSub) app.supabase.removeChannel(app.realtimeSub);
           showToast(`${myItems.length}벌 제출 완료! 매니저 승인을 기다려요`, 'success');
           showScreen('s-home');
