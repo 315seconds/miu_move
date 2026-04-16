@@ -796,19 +796,26 @@ window.addEventListener('DOMContentLoaded', () => {
   renderHomeDate();
   loadHomeSessions();
 
-  // barcode input — keyup 방식, IME 개입 차단
+  // 스캐너 전용: e.key 직접 수집 → IME 완전 우회
   const bi = document.getElementById('barcode-input');
-  let barcodeTimer = null;
-  bi.addEventListener('keyup', e => {
+  let scanBuffer = '';
+  let scanTimer  = null;
+
+  bi.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
-      clearTimeout(barcodeTimer);
-      const v = normalizeBarcode(e.target.value);
-      if (v) { processBarcode(v); e.target.value = ''; }
+      clearTimeout(scanTimer);
+      const val = normalizeBarcode(scanBuffer);
+      scanBuffer = '';
+      bi.value = '';
+      if (val) processBarcode(val);
       return;
     }
-    // 스캐너는 연속 입력 후 Enter로 끝남 — 100ms 내 Enter 없으면 무시
-    clearTimeout(barcodeTimer);
-    barcodeTimer = setTimeout(() => { e.target.value = ''; }, 3000);
+    if (e.key.length !== 1) return; // Shift, Ctrl 등 무시
+    e.preventDefault();             // IME가 input 값 건드리지 못하게 차단
+    scanBuffer += e.key;
+    bi.value = scanBuffer;          // 화면에 누적값 표시
+    clearTimeout(scanTimer);
+    scanTimer = setTimeout(() => { scanBuffer = ''; bi.value = ''; }, 5000);
   });
 
   // lookup enter
