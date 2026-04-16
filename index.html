@@ -460,7 +460,7 @@ alter publication supabase_realtime add table session_items;</div>
   <div class="scan-input-area">
     <div class="scan-input-wrap">
       <div class="scan-pulse"></div>
-      <input class="scan-input-field" id="barcode-input" placeholder="바코드를 스캔하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <input class="scan-input-field" id="barcode-input" placeholder="바코드를 스캔하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none" lang="en">
     </div>
   </div>
   <div class="scan-list" id="scan-list"></div>
@@ -796,13 +796,19 @@ window.addEventListener('DOMContentLoaded', () => {
   renderHomeDate();
   loadHomeSessions();
 
-  // barcode input
+  // barcode input — keyup 방식, IME 개입 차단
   const bi = document.getElementById('barcode-input');
-  bi.addEventListener('keydown', e => {
+  let barcodeTimer = null;
+  bi.addEventListener('keyup', e => {
     if (e.key === 'Enter') {
-      const v = e.target.value.trim();
+      clearTimeout(barcodeTimer);
+      const v = normalizeBarcode(e.target.value);
       if (v) { processBarcode(v); e.target.value = ''; }
+      return;
     }
+    // 스캐너는 연속 입력 후 Enter로 끝남 — 100ms 내 Enter 없으면 무시
+    clearTimeout(barcodeTimer);
+    barcodeTimer = setTimeout(() => { e.target.value = ''; }, 3000);
   });
 
   // lookup enter
@@ -1177,14 +1183,54 @@ function focusBarcodeInput() {
   setTimeout(() => { document.getElementById('barcode-input')?.focus(); }, 200);
 }
 
-async function processBarcode(barcode) {
-  // Check duplicate in current scan list
-  if (app.scannedItems.find(i => i.barcode === barcode)) {
+// 한글 2벌식 → 영어 역변환 + 대문자 통일
+function normalizeBarcode(input) {
+  const JAMO_TO_ENG = {
+    'ㄱ':'r','ㄲ':'R','ㄴ':'s','ㄷ':'e','ㄸ':'E','ㄹ':'f','ㅁ':'a','ㅂ':'q','ㅃ':'Q',
+    'ㅅ':'t','ㅆ':'T','ㅇ':'','ㅈ':'w','ㅉ':'W','ㅊ':'c','ㅋ':'z','ㅌ':'x','ㅍ':'v','ㅎ':'g',
+    'ㅏ':'k','ㅐ':'o','ㅑ':'i','ㅒ':'O','ㅓ':'j','ㅔ':'p','ㅕ':'u','ㅖ':'P',
+    'ㅗ':'h','ㅘ':'hk','ㅙ':'ho','ㅚ':'hl','ㅛ':'y',
+    'ㅜ':'n','ㅝ':'nj','ㅞ':'np','ㅟ':'nl','ㅠ':'b',
+    'ㅡ':'m','ㅢ':'ml','ㅣ':'l',
+    'ㄳ':'rt','ㄵ':'sw','ㄶ':'sg','ㄺ':'fr','ㄻ':'fa','ㄼ':'fq',
+    'ㄽ':'ft','ㄾ':'fx','ㄿ':'fv','ㅀ':'fg','ㅄ':'qt'
+  };
+  const INITIALS = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  const VOWELS   = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+  const FINALS   = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+  let result = '';
+  for (const ch of input) {
+    const code = ch.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3) {
+      // 완성형 한글 음절 분해
+      const offset = code - 0xAC00;
+      const iIdx = Math.floor(offset / (21 * 28));
+      const vIdx = Math.floor((offset % (21 * 28)) / 28);
+      const fIdx = offset % 28;
+      result += JAMO_TO_ENG[INITIALS[iIdx]] ?? '';   // ㅇ 초성 = 빈 문자열(무음)
+      result += JAMO_TO_ENG[VOWELS[vIdx]]  ?? '';
+      if (fIdx > 0) result += JAMO_TO_ENG[FINALS[fIdx]] ?? '';
+    } else if (code >= 0x3130 && code <= 0x318F) {
+      // 독립 자모
+      result += JAMO_TO_ENG[ch] ?? ch;
+    } else {
+      result += ch;
+    }
+  }
+  return result.toUpperCase().trim();
+}
+
+async function processBarcode(input) {
+  // inputmode=none + keyup으로 대부분 차단되지만 혹시 한글이 뚫리면 fallback 변환
+  const barcode = normalizeBarcode(input);
+  if (!barcode) return;
+
+  // 중복 체크 (대소문자 무시)
+  if (app.scannedItems.find(i => i.barcode.toUpperCase() === barcode)) {
     showToast(`이미 스캔된 바코드예요: ${barcode}`, 'error');
     return;
   }
-
-  // Look up in excel
   let item = { barcode, is_error: false, product_name: '', category: '', price: '', current_location: '' };
 
   if (app.excelBarcodeMap && app.excelBarcodeMap[barcode] !== undefined) {
@@ -1196,8 +1242,8 @@ async function processBarcode(barcode) {
         const ref = XLSX.utils.encode_cell({ r: rowIdx, c: XLSX.utils.decode_col(col) });
         return sheet[ref]?.v ?? '';
       };
-      item.product_name    = String(getCell(app.settings.colName     || 'C'));
-      item.category        = String(getCell(app.settings.colCat      || 'D'));
+      item.product_name    = String(getCell(app.settings.colName     || 'D'));
+      item.category        = String(getCell(app.settings.colCat      || 'H'));
       item.price           = String(getCell(app.settings.colPrice    || 'E'));
       item.current_location= String(getCell(app.settings.colLocation || 'B'));
     }
@@ -1382,7 +1428,7 @@ async function loadExcelFromDropbox() {
   jsonData.forEach((row, i) => {
     if (i === 0) return;
     const bc = row[bcCol];
-    if (bc !== undefined && bc !== '') map[String(bc).trim()] = i;
+    if (bc !== undefined && bc !== '') map[String(bc).trim().toUpperCase()] = i;
   });
   app.excelBarcodeMap = map;
 }
@@ -2034,8 +2080,9 @@ async function downloadLogExcel() {
 //  LOOKUP
 // ══════════════════════════════════════════
 async function doLookup() {
-  const barcode = document.getElementById('lookup-input').value.trim();
-  if (!barcode) return;
+  const raw = document.getElementById('lookup-input').value.trim();
+  if (!raw) return;
+  const barcode = normalizeBarcode(raw);
   const el = document.getElementById('lookup-result');
   el.innerHTML = '<div class="loading"><div class="spinner"></div>조회 중...</div>';
 
@@ -2043,7 +2090,7 @@ async function doLookup() {
     const { data } = await app.supabase
       .from('session_items')
       .select('*, move_sessions(*)')
-      .eq('barcode', barcode)
+      .ilike('barcode', barcode)   // 대소문자 무시 검색
       .order('scanned_at', { ascending: false });
 
     if (!data || data.length === 0) {
