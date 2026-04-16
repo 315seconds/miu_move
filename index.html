@@ -1151,6 +1151,14 @@ function confirmLeaveScanning() {
 // ══════════════════════════════════════════
 //  DROPBOX + EXCEL
 // ══════════════════════════════════════════
+
+// HTTP 헤더는 ASCII만 허용 → 한글 경로를 \uXXXX 이스케이프로 변환
+function toAsciiJson(obj) {
+  return JSON.stringify(obj).replace(/[^\x00-\x7F]/g, c =>
+    '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')
+  );
+}
+
 function getExcelFilePath(date) {
   const d = date || new Date();
   const year = d.getFullYear();
@@ -1169,13 +1177,13 @@ async function loadExcelFromDropbox() {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${dropboxToken}`,
-      'Dropbox-API-Arg': JSON.stringify({ path }),
+      'Dropbox-API-Arg': toAsciiJson({ path }),
     }
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error_summary || `파일 다운로드 실패 (${res.status})`);
+    throw new Error(err?.error_summary || `파일 다운로드 실패 (${res.status})\n경로: ${path}`);
   }
 
   const buffer = await res.arrayBuffer();
@@ -1206,7 +1214,7 @@ async function uploadExcelToDropbox(workbook) {
     headers: {
       'Authorization': `Bearer ${dropboxToken}`,
       'Content-Type': 'application/octet-stream',
-      'Dropbox-API-Arg': JSON.stringify({
+      'Dropbox-API-Arg': toAsciiJson({
         path: app.excelFilePath || getExcelFilePath(),
         mode: 'overwrite', autorename: false, mute: false
       })
