@@ -363,6 +363,7 @@ create table session_items (
   current_location text,
   scanned_by text not null,
   scanned_at timestamptz default now(),
+  is_submitted boolean default false,
   is_error boolean default false,
   error_msg text
 );
@@ -1221,20 +1222,42 @@ function updateScanCount() {
 async function updateSessionMemberCount() {
   try {
     const { data } = await app.supabase.from('session_items')
-      .select('scanned_by').eq('session_id', app.currentSession.id);
+      .select('scanned_by, is_submitted').eq('session_id', app.currentSession.id);
     if (data) {
-      const members = [...new Set(data.map(d => d.scanned_by))];
-      document.getElementById('scan-session-members').textContent = members.join(', ');
+      const memberMap = {};
+      data.forEach(d => {
+        if (!memberMap[d.scanned_by]) memberMap[d.scanned_by] = { total: 0, submitted: false };
+        memberMap[d.scanned_by].total++;
+        if (d.is_submitted) memberMap[d.scanned_by].submitted = true;
+      });
+      const text = Object.entries(memberMap)
+        .map(([name, info]) => `${name}${info.submitted ? ' ✅' : ''}`)
+        .join('  ·  ');
+      document.getElementById('scan-session-members').textContent = text;
     }
   } catch{}
 }
 
 async function submitScan() {
-  const count = document.getElementById('scan-list').children.length;
-  if (count === 0) { showToast('스캔된 물건이 없어요', 'error'); return; }
-  showModal('스캔 완료', `${app.scanFrom} → ${app.scanTo}\n총 ${count}벌을 제출해요.\n\n매니저의 승인 후 엑셀이 업데이트됩니다.`,
+  const myItems = app.scannedItems.filter(i => i.scanned_by === app.scanUser && !i.is_error);
+  if (myItems.length === 0) { showToast('내가 스캔한 정상 물건이 없어요', 'error'); return; }
+
+  showModal('제출 확인',
+    `${app.scanFrom} → ${app.scanTo}\n내 스캔 항목 ${myItems.length}벌을 제출해요.\n\n제출 후에는 매니저 승인을 기다려요.`,
     [
-      { label: '제출하기', class: 'btn-primary', fn: async () => { closeModal(); if(app.realtimeSub) app.supabase.removeChannel(app.realtimeSub); showToast('제출 완료! 매니저 승인을 기다려요', 'success'); showScreen('s-home'); }},
+      { label: '제출하기', class: 'btn-primary', fn: async () => {
+        closeModal();
+        try {
+          await app.supabase.from('session_items')
+            .update({ is_submitted: true })
+            .eq('session_id', app.currentSession.id)
+            .eq('scanned_by', app.scanUser)
+            .eq('is_error', false);
+          if (app.realtimeSub) app.supabase.removeChannel(app.realtimeSub);
+          showToast(`${myItems.length}벌 제출 완료! 매니저 승인을 기다려요`, 'success');
+          showScreen('s-home');
+        } catch(e) { showToast('제출 오류: ' + e.message, 'error'); }
+      }},
       { label: '계속 스캔', class: 'btn-secondary', fn: closeModal }
     ]);
 }
@@ -1465,46 +1488,65 @@ async function viewSession(sessionId) {
 
 function renderSessionDetail(session, items) {
   const isPending = session.status === 'pending';
-  const total = items.length;
-  const valid = items.filter(i => !i.is_error).length;
-  const errors = items.filter(i => i.is_error).length;
+  const submitted  = items.filter(i => i.is_submitted && !i.is_error);
+  const inProgress = items.filter(i => !i.is_submitted && !i.is_error);
+  const errors     = items.filter(i => i.is_error);
+  const total      = items.length;
 
   document.getElementById('detail-title').textContent = `${session.from_location} → ${session.to_location}`;
   document.getElementById('detail-sub').textContent = `${formatDate(session.session_date)} · ${session.created_by}`;
 
   const badgeMap = { pending:'pending', approved:'approved', correction:'correction' };
   const badgeLbl = { pending:'대기중', approved:'완료', correction:'정정완료' };
-  document.getElementById('detail-badge-wrap').innerHTML = `<span class="badge badge-${badgeMap[session.status]||'pending'} badge-dot">${badgeLbl[session.status]||session.status}</span>`;
+  document.getElementById('detail-badge-wrap').innerHTML =
+    `<span class="badge badge-${badgeMap[session.status]||'pending'} badge-dot">${badgeLbl[session.status]||session.status}</span>`;
 
   document.getElementById('detail-stats').innerHTML = `
     <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:var(--accent);font-family:var(--font-mono)">${total}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px">전체</div>
+      <div style="font-size:22px;font-weight:900;color:var(--success);font-family:var(--font-mono)">${submitted.length}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">제출완료</div>
     </div>
     <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:var(--success);font-family:var(--font-mono)">${valid}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px">정상</div>
+      <div style="font-size:22px;font-weight:900;color:var(--accent);font-family:var(--font-mono)">${inProgress.length}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">진행중</div>
     </div>
     <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:900;color:${errors>0?'var(--danger)':'var(--text3)'};font-family:var(--font-mono)">${errors}</div>
+      <div style="font-size:22px;font-weight:900;color:${errors.length>0?'var(--danger)':'var(--text3)'};font-family:var(--font-mono)">${errors.length}</div>
       <div style="font-size:11px;color:var(--text2);margin-top:2px">오류</div>
     </div>
   `;
 
-  document.getElementById('detail-items-list').innerHTML = items.map((item,i) => `
+  const itemRow = (item, i, tag) => `
     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
       <span style="font-family:var(--font-mono);font-size:11px;color:var(--text3);width:24px;text-align:right">${i+1}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;${item.is_error?'color:var(--danger)':''}">${item.is_error ? `⚠ ${item.barcode}` : (item.product_name||item.barcode)}</div>
+        <div style="font-size:13px;font-weight:600;${item.is_error?'color:var(--danger)':''}">${item.is_error?`⚠ ${item.barcode}`:(item.product_name||item.barcode)}</div>
         <div style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${item.barcode}${item.category?` · ${item.category}`:''}${item.price?` · ${item.price}`:''}</div>
-        ${item.is_error ? `<div style="font-size:11px;color:var(--danger)">${item.error_msg||''}</div>` : ''}
+        ${item.is_error?`<div style="font-size:11px;color:var(--danger)">${item.error_msg||''}</div>`:''}
       </div>
       <span style="font-size:11px;color:var(--text3)">${item.scanned_by}</span>
-    </div>
-  `).join('');
+      ${tag||''}
+    </div>`;
 
+  let html = '';
+  if (submitted.length > 0) {
+    html += `<div style="font-size:12px;font-weight:700;color:var(--success);padding:10px 0 4px;letter-spacing:.04em">✅ 제출완료 — ${submitted.length}벌 (승인 대상)</div>`;
+    html += submitted.map((item,i) => itemRow(item, i, '')).join('');
+  }
+  if (inProgress.length > 0) {
+    html += `<div style="font-size:12px;font-weight:700;color:var(--accent);padding:14px 0 4px;letter-spacing:.04em">🔄 진행중 — ${inProgress.length}벌 (승인 제외)</div>`;
+    html += inProgress.map((item,i) => itemRow(item, i, '')).join('');
+  }
+  if (errors.length > 0) {
+    html += `<div style="font-size:12px;font-weight:700;color:var(--danger);padding:14px 0 4px;letter-spacing:.04em">⚠ 오류 — ${errors.length}벌 (엑셀 미반영)</div>`;
+    html += errors.map((item,i) => itemRow(item, i, '')).join('');
+  }
+  if (!html) html = '<div class="empty" style="padding:20px"><div class="empty-text">스캔된 항목이 없어요</div></div>';
+  document.getElementById('detail-items-list').innerHTML = html;
+
+  const hasSubmitted = submitted.length > 0;
   document.getElementById('detail-approve-warning').style.display = isPending && app.mgrApprover ? 'block' : 'none';
-  document.getElementById('detail-approve-btn-area').style.display = isPending && app.mgrApprover ? 'block' : 'none';
+  document.getElementById('detail-approve-btn-area').style.display = isPending && app.mgrApprover && hasSubmitted ? 'block' : 'none';
   document.getElementById('detail-approved-info').style.display = !isPending ? 'block' : 'none';
   if (!isPending) {
     document.getElementById('detail-approved-info').textContent =
@@ -1518,11 +1560,20 @@ function startApprove() {
   updatePinDots('apin-d', 0);
   document.getElementById('apin-error').textContent = '';
   document.getElementById('apin-loading').style.display = 'none';
-  document.getElementById('approve-summary').innerHTML = `
-    <div style="font-size:13px;color:var(--text2);margin-bottom:6px">승인 내용</div>
-    <div style="font-weight:700;font-size:15px">${app.selectedSession.from_location} → ${app.selectedSession.to_location}</div>
-    <div style="font-size:13px;color:var(--text2);margin-top:4px">승인자: ${app.mgrApprover.name}</div>
-  `;
+  // Count submitted items for summary
+  app.supabase.from('session_items')
+    .select('id', { count: 'exact' })
+    .eq('session_id', app.selectedSession.id)
+    .eq('is_submitted', true)
+    .eq('is_error', false)
+    .then(({ count }) => {
+      document.getElementById('approve-summary').innerHTML = `
+        <div style="font-size:13px;color:var(--text2);margin-bottom:6px">승인 내용</div>
+        <div style="font-weight:700;font-size:15px">${app.selectedSession.from_location} → ${app.selectedSession.to_location}</div>
+        <div style="font-size:14px;color:var(--success);margin-top:6px;font-weight:600">제출완료 ${count||0}벌 엑셀 업데이트</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px">승인자: ${app.mgrApprover.name}</div>
+      `;
+    });
   showScreen('s-approve-confirm');
 }
 
@@ -1550,14 +1601,15 @@ async function executeApproval() {
   ldg.style.display = 'flex';
 
   try {
-    // Get items
+    // 제출완료 항목만 가져오기
     const { data: items } = await app.supabase.from('session_items')
-      .select('*').eq('session_id', app.selectedSession.id);
+      .select('*').eq('session_id', app.selectedSession.id)
+      .eq('is_submitted', true);
 
-    // Update excel
+    // 제출완료 항목만 엑셀 업데이트
     await updateExcelForSession(app.selectedSession, items || []);
 
-    // Update session status
+    // 세션 상태 업데이트
     await app.supabase.from('move_sessions').update({
       status: 'approved',
       approved_by: app.mgrApprover.name,
@@ -1581,10 +1633,10 @@ async function executeApproval() {
 function generateSlackSummary(session, items) {
   const today = new Date();
   const dateStr = `${today.getFullYear()}.${pad(today.getMonth()+1)}.${pad(today.getDate())}`;
-  const valid = items.filter(i => !i.is_error);
-  const errors = items.filter(i => i.is_error);
-  const members = [...new Set(items.map(i => i.scanned_by))];
-  const prefix = session.is_correction ? '[정정이동]' : '[이동보고]';
+  const valid   = items.filter(i => i.is_submitted && !i.is_error);
+  const errors  = items.filter(i => i.is_error);
+  const members = [...new Set(valid.map(i => i.scanned_by))];
+  const prefix  = session.is_correction ? '[정정이동]' : '[이동보고]';
 
   let text = `${prefix} ${session.from_location} → ${session.to_location}  |  ${dateStr}
 담당: ${members.join(', ')}  /  승인: ${app.mgrApprover.name}
