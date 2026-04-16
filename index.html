@@ -2295,16 +2295,21 @@ async function loadAdmin() {
   if (!app.supabase) return;
   if (!app.adminAuthed) { showScreen('s-admin-auth', false); return; }
 
-  // 각 쿼리를 독립적으로 실행 — 하나 실패해도 나머지는 표시
-  const [locRes, handlerRes, aprRes] = await Promise.allSettled([
-    app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name'),
-    app.supabase.from('handlers').select('*').order('is_active', { ascending: false }).order('name'),
-    app.supabase.from('approvers').select('id,name').order('name'),
-  ]);
+  // 각 쿼리 독립 실행 — 하나 실패해도 나머지에 영향 없음
+  try {
+    const { data } = await app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name');
+    renderLocations(data || []);
+  } catch(e) { renderLocations([]); }
 
-  renderLocations(locRes.status === 'fulfilled' ? (locRes.value.data || []) : []);
-  renderHandlers(handlerRes.status === 'fulfilled' ? (handlerRes.value.data || []) : []);
-  renderApprovers(aprRes.status === 'fulfilled' ? (aprRes.value.data || []) : []);
+  try {
+    const { data } = await app.supabase.from('handlers').select('*').order('is_active', { ascending: false }).order('name');
+    renderHandlers(data || []);
+  } catch(e) { renderHandlers([]); }
+
+  try {
+    const { data } = await app.supabase.from('approvers').select('id,name').order('name');
+    renderApprovers(data || []);
+  } catch(e) { renderApprovers([]); }
 }
 
 function renderHandlers(list) {
