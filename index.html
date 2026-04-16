@@ -196,7 +196,20 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 /* ── SLACK SUMMARY ── */
 .slack-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:16px;font-family:var(--font-mono);font-size:12px;line-height:1.8;color:var(--text2);white-space:pre-wrap;word-break:break-all;max-height:40vh;overflow-y:auto}
 
-/* ── SETTINGS ── */
+/* ── LOG ── */
+.log-filter-btn{background:var(--s2);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-family:inherit;font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.log-filter-btn.active{background:var(--accent);border-color:var(--accent);color:#000}
+.log-date-group{padding:10px 16px 4px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;background:var(--bg);position:sticky;top:0;z-index:2}
+.log-session-card{border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.log-session-card:hover{background:var(--s1)}
+.log-session-header{display:flex;align-items:center;gap:10px;padding:13px 16px}
+.log-session-chevron{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0}
+.log-session-chevron.open{transform:rotate(90deg)}
+.log-barcode-list{padding:0 16px 12px;border-top:1px solid var(--border);background:var(--s1);display:none}
+.log-barcode-list.open{display:block}
+.log-barcode-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.log-barcode-row:last-child{border-bottom:none}
+
 .settings-hint{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.6}
 .sql-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--text2);white-space:pre;overflow-x:auto;line-height:1.6;margin-top:8px}
 
@@ -248,8 +261,15 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <div class="home-tile" onclick="showScreen('s-lookup')">
         <div class="home-tile-icon">🔍</div>
         <div>
-          <div class="home-tile-label">이동 경로 조회</div>
+          <div class="home-tile-label">경로 조회</div>
           <div class="home-tile-sub">바코드로 확인</div>
+        </div>
+      </div>
+      <div class="home-tile" onclick="showScreen('s-log')">
+        <div class="home-tile-icon">📋</div>
+        <div>
+          <div class="home-tile-label">이동 로그</div>
+          <div class="home-tile-sub">날짜별 전체 내역</div>
         </div>
       </div>
       <div class="home-tile" onclick="startAdminFlow()">
@@ -606,6 +626,33 @@ alter publication supabase_realtime add table session_items;</div>
   </div>
 </div>
 
+<!-- ════════════════ LOG ════════════════ -->
+<div class="screen" id="s-log">
+  <div class="topbar">
+    <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div style="flex:1"><div class="topbar-title">이동 로그</div><div class="topbar-sub" id="log-sub"></div></div>
+    <div class="topbar-action" onclick="downloadLogExcel()">⬇ 엑셀</div>
+  </div>
+
+  <!-- 날짜 필터 -->
+  <div style="padding:12px 16px;background:var(--s1);border-bottom:1px solid var(--border);display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <button class="log-filter-btn active" onclick="setLogFilter('today',this)">오늘</button>
+    <button class="log-filter-btn" onclick="setLogFilter('week',this)">이번 주</button>
+    <button class="log-filter-btn" onclick="setLogFilter('month',this)">이번 달</button>
+    <button class="log-filter-btn" onclick="setLogFilter('custom',this)">직접 입력</button>
+  </div>
+  <div id="log-custom-range" style="display:none;padding:10px 16px;background:var(--s1);border-bottom:1px solid var(--border);display:none;gap:8px;align-items:center">
+    <input type="date" class="form-input" id="log-date-from" style="flex:1;font-size:13px;padding:10px 12px">
+    <span style="color:var(--text2);font-size:13px">~</span>
+    <input type="date" class="form-input" id="log-date-to" style="flex:1;font-size:13px;padding:10px 12px">
+    <button class="btn btn-primary btn-sm" onclick="loadLog()" style="width:52px;flex-shrink:0">조회</button>
+  </div>
+
+  <div class="content" style="padding:0">
+    <div id="log-list"></div>
+  </div>
+</div>
+
 <!-- ════════════════ LOOKUP ════════════════ -->
 <div class="screen" id="s-lookup">
   <div class="topbar">
@@ -876,7 +923,7 @@ function onScreenEnter(id) {
   if (id === 's-manager-auth') initManagerAuth();
   if (id === 's-manager-list') loadManagerSessions();
   if (id === 's-admin-auth') initAdminAuth();
-  if (id === 's-admin') loadAdmin();
+  if (id === 's-log') initLog();
   if (id === 's-scanning') focusBarcodeInput();
 }
 
@@ -1716,6 +1763,271 @@ async function submitCorrection() {
   showToast('정정 세션이 생성됐어요. 승인해주세요', 'success');
   app.selectedSession = newSess;
   await viewSession(newSess.id);
+}
+
+// ══════════════════════════════════════════
+//  LOG
+// ══════════════════════════════════════════
+const logState = { filter: 'today', sessions: [], items: {} };
+
+function initLog() {
+  setLogFilter('today', document.querySelector('.log-filter-btn'));
+}
+
+function setLogFilter(type, btn) {
+  logState.filter = type;
+  document.querySelectorAll('.log-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const customEl = document.getElementById('log-custom-range');
+  if (type === 'custom') {
+    customEl.style.display = 'flex';
+    const today = toDateStr(new Date());
+    document.getElementById('log-date-from').value = today;
+    document.getElementById('log-date-to').value   = today;
+  } else {
+    customEl.style.display = 'none';
+    loadLog();
+  }
+}
+
+function getLogDateRange() {
+  const now = new Date();
+  const today = toDateStr(now);
+  if (logState.filter === 'today') return { from: today, to: today };
+  if (logState.filter === 'week') {
+    const d = new Date(now); d.setDate(d.getDate() - 6);
+    return { from: toDateStr(d), to: today };
+  }
+  if (logState.filter === 'month') {
+    return { from: `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`, to: today };
+  }
+  return {
+    from: document.getElementById('log-date-from').value,
+    to:   document.getElementById('log-date-to').value
+  };
+}
+
+async function loadLog() {
+  if (!app.supabase) return;
+  const listEl = document.getElementById('log-list');
+  listEl.innerHTML = '<div class="loading"><div class="spinner"></div>불러오는 중...</div>';
+
+  const { from, to } = getLogDateRange();
+  document.getElementById('log-sub').textContent = from === to ? from : `${from} ~ ${to}`;
+
+  try {
+    const { data: sessions } = await app.supabase
+      .from('move_sessions')
+      .select('*')
+      .gte('session_date', from)
+      .lte('session_date', to)
+      .order('session_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (!sessions || sessions.length === 0) {
+      listEl.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">해당 기간에 이동 내역이 없어요</div></div>';
+      return;
+    }
+
+    // 세션별 아이템 카운트
+    const ids = sessions.map(s => s.id);
+    const { data: countData } = await app.supabase
+      .from('session_items')
+      .select('session_id, is_submitted, is_error')
+      .in('session_id', ids);
+
+    const countMap = {};
+    (countData || []).forEach(i => {
+      if (!countMap[i.session_id]) countMap[i.session_id] = { total: 0, submitted: 0 };
+      countMap[i.session_id].total++;
+      if (i.is_submitted && !i.is_error) countMap[i.session_id].submitted++;
+    });
+
+    logState.sessions = sessions;
+    logState.itemCache = {};
+
+    // 날짜별 그룹핑
+    const grouped = {};
+    sessions.forEach(s => {
+      if (!grouped[s.session_date]) grouped[s.session_date] = [];
+      grouped[s.session_date].push(s);
+    });
+
+    const badgeLbl = { pending:'대기중', approved:'완료', correction:'정정완료' };
+    const badgeCls = { pending:'pending', approved:'approved', correction:'correction' };
+
+    let html = '';
+    Object.entries(grouped).forEach(([date, list]) => {
+      html += `<div class="log-date-group">${formatDate(date)}</div>`;
+      list.forEach(s => {
+        const cnt = countMap[s.id] || { total: 0, submitted: 0 };
+        html += `
+        <div class="log-session-card" id="lsc-${s.id}">
+          <div class="log-session-header" onclick="toggleLogSession('${s.id}')">
+            <span class="log-session-chevron" id="chv-${s.id}">▶</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700">${s.from_location} → ${s.to_location}</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px">
+                ${formatTime(s.created_at)} · ${s.created_by}
+                · <span style="font-family:var(--font-mono)">${cnt.submitted}벌 제출</span>
+                ${cnt.total - cnt.submitted > 0 ? `<span style="color:var(--accent)"> (진행중 ${cnt.total - cnt.submitted})</span>` : ''}
+              </div>
+            </div>
+            <span class="badge badge-${badgeCls[s.status]||'pending'} badge-dot" style="flex-shrink:0">${badgeLbl[s.status]||s.status}</span>
+          </div>
+          <div class="log-barcode-list" id="lbl-${s.id}">
+            <div class="loading" style="padding:16px 0"><div class="spinner"></div><span style="margin-left:8px;font-size:13px">불러오는 중...</span></div>
+          </div>
+        </div>`;
+      });
+    });
+
+    listEl.innerHTML = html;
+  } catch(e) { listEl.innerHTML = `<div style="padding:20px;color:var(--danger);font-size:14px">오류: ${e.message}</div>`; }
+}
+
+async function toggleLogSession(sessionId) {
+  const listEl  = document.getElementById(`lbl-${sessionId}`);
+  const chevron = document.getElementById(`chv-${sessionId}`);
+  const isOpen  = listEl.classList.contains('open');
+
+  if (isOpen) {
+    listEl.classList.remove('open');
+    chevron.classList.remove('open');
+    return;
+  }
+
+  listEl.classList.add('open');
+  chevron.classList.add('open');
+
+  // 캐시 있으면 재사용
+  if (logState.itemCache?.[sessionId]) {
+    renderLogItems(sessionId, logState.itemCache[sessionId]);
+    return;
+  }
+
+  try {
+    const { data: items } = await app.supabase
+      .from('session_items').select('*')
+      .eq('session_id', sessionId)
+      .order('scanned_at', { ascending: true });
+    logState.itemCache[sessionId] = items || [];
+    renderLogItems(sessionId, items || []);
+  } catch(e) {
+    document.getElementById(`lbl-${sessionId}`).innerHTML =
+      `<div style="padding:12px 0;color:var(--danger);font-size:13px">오류: ${e.message}</div>`;
+  }
+}
+
+function renderLogItems(sessionId, items) {
+  const submitted  = items.filter(i => i.is_submitted && !i.is_error);
+  const inProgress = items.filter(i => !i.is_submitted && !i.is_error);
+  const errors     = items.filter(i => i.is_error);
+
+  const row = (item, i) => `
+    <div class="log-barcode-row">
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text3);width:22px;flex-shrink:0">${i+1}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.product_name||item.barcode}</div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${item.barcode}${item.category?` · ${item.category}`:''}${item.price?` · ${item.price}`:''}</div>
+      </div>
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0">${item.scanned_by}</span>
+    </div>`;
+
+  let html = '';
+  if (submitted.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--success);padding:10px 0 4px">✅ 제출완료 ${submitted.length}벌</div>`;
+    html += submitted.map((item, i) => row(item, i)).join('');
+  }
+  if (inProgress.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--accent);padding:10px 0 4px">🔄 진행중 ${inProgress.length}벌</div>`;
+    html += inProgress.map((item, i) => row(item, i)).join('');
+  }
+  if (errors.length) {
+    html += `<div style="font-size:11px;font-weight:700;color:var(--danger);padding:10px 0 4px">⚠ 오류 ${errors.length}건</div>`;
+    html += errors.map((item, i) => row(item, i)).join('');
+  }
+  if (!html) html = '<div style="padding:12px 0;color:var(--text3);font-size:13px">항목이 없어요</div>';
+  document.getElementById(`lbl-${sessionId}`).innerHTML = html;
+}
+
+async function downloadLogExcel() {
+  if (!app.supabase) { showToast('Supabase 설정이 필요해요', 'error'); return; }
+  showToast('엑셀 생성 중...', '');
+
+  const { from, to } = getLogDateRange();
+
+  try {
+    // 세션 데이터
+    const { data: sessions } = await app.supabase
+      .from('move_sessions').select('*')
+      .gte('session_date', from).lte('session_date', to)
+      .order('session_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (!sessions || sessions.length === 0) { showToast('해당 기간에 데이터가 없어요', 'error'); return; }
+
+    // 아이템 데이터
+    const ids = sessions.map(s => s.id);
+    const { data: items } = await app.supabase
+      .from('session_items').select('*').in('session_id', ids);
+
+    const sessionMap = {};
+    sessions.forEach(s => { sessionMap[s.id] = s; });
+
+    const wb = XLSX.utils.book_new();
+
+    // ── 시트 1: 세션 요약 ──
+    const summaryRows = [
+      ['날짜', '출발지', '도착지', '상태', '제출완료', '진행중', '오류', '담당자', '승인자', '승인시간']
+    ];
+    sessions.forEach(s => {
+      const si = (items||[]).filter(i => i.session_id === s.id);
+      summaryRows.push([
+        s.session_date,
+        s.from_location,
+        s.to_location,
+        { pending:'대기중', approved:'완료', correction:'정정완료' }[s.status] || s.status,
+        si.filter(i => i.is_submitted && !i.is_error).length,
+        si.filter(i => !i.is_submitted && !i.is_error).length,
+        si.filter(i => i.is_error).length,
+        s.created_by,
+        s.approved_by || '',
+        s.approved_at ? formatDate(s.approved_at) + ' ' + formatTime(s.approved_at) : ''
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), '세션요약');
+
+    // ── 시트 2: 전체 바코드 내역 ──
+    const detailRows = [
+      ['날짜', '출발지', '도착지', '세션상태', '바코드', '상품명', '카테고리', '금액', '담당자', '스캔시간', '제출여부', '오류여부', '오류내용']
+    ];
+    (items||[]).forEach(item => {
+      const s = sessionMap[item.session_id];
+      if (!s) return;
+      detailRows.push([
+        s.session_date,
+        s.from_location,
+        s.to_location,
+        { pending:'대기중', approved:'완료', correction:'정정완료' }[s.status] || s.status,
+        item.barcode,
+        item.product_name || '',
+        item.category || '',
+        item.price || '',
+        item.scanned_by,
+        item.scanned_at ? formatDate(item.scanned_at) + ' ' + formatTime(item.scanned_at) : '',
+        item.is_submitted ? '제출완료' : '진행중',
+        item.is_error ? '오류' : '',
+        item.error_msg || ''
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailRows), '바코드전체내역');
+
+    // 다운로드
+    const fileName = `이동로그_${from}${from !== to ? '_' + to : ''}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showToast('다운로드 완료!', 'success');
+  } catch(e) { showToast('오류: ' + e.message, 'error'); }
 }
 
 // ══════════════════════════════════════════
