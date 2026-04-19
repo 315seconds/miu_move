@@ -310,9 +310,17 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div class="divider"></div>
     <h2 class="section-title" style="margin-top:0">Dropbox 연결</h2>
     <div class="form-group">
-      <label class="form-label">Access Token</label>
-      <input class="form-input" id="cfg-db-token" placeholder="sl.Abc123..." autocomplete="off">
-      <div class="settings-hint">Dropbox 개발자 콘솔 → 앱 설정 → Access Token 발급 후 붙여넣기</div>
+      <label class="form-label">App Key</label>
+      <input class="form-input" id="cfg-db-appkey" placeholder="abc123..." autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">App Secret</label>
+      <input class="form-input" id="cfg-db-appsecret" placeholder="xyz789..." autocomplete="off" type="password">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Refresh Token</label>
+      <input class="form-input" id="cfg-db-refresh" placeholder="긴 토큰값..." autocomplete="off">
+      <div class="settings-hint">VM 서버의 .env 파일에서 DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN 값을 복사하세요. 한 번 설정하면 만료되지 않아요.</div>
     </div>
 
     <div class="divider"></div>
@@ -633,7 +641,7 @@ alter publication supabase_realtime add table session_items;</div>
       <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="apinBackspace()">⌫</div>
     </div>
     <div id="apin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
-    <div id="apin-loading" class="loading" style="display:none"><div class="spinner"></div>Dropbox 업데이트 중...</div>
+    <div id="apin-loading" class="loading" style="display:none"><div class="spinner"></div>승인 처리 중...</div>
   </div>
 </div>
 
@@ -788,7 +796,8 @@ const app = {
 
 const DEFAULT_SETTINGS = {
   supabaseUrl: '', supabaseKey: '',
-  dropboxToken: '',
+  dropboxAppKey: '', dropboxAppSecret: '', dropboxRefreshToken: '',
+  dropboxAccessToken: '', // 자동 갱신된 임시 토큰 캐시
   colBarcode: 'G', colLocation: 'B', colDate: 'O',
   colName: 'D', colCat: 'H', colPrice: 'E'
 };
@@ -896,28 +905,33 @@ function loadSettings() {
   try { app.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('miu-settings') || '{}') }; }
   catch { app.settings = { ...DEFAULT_SETTINGS }; }
   const f = id => document.getElementById(id);
-  f('cfg-sb-url').value  = app.settings.supabaseUrl  || '';
-  f('cfg-sb-key').value  = app.settings.supabaseKey  || '';
-  f('cfg-db-token').value= app.settings.dropboxToken || '';
-  f('cfg-col-barcode').value = app.settings.colBarcode || 'A';
-  f('cfg-col-location').value= app.settings.colLocation|| 'B';
-  f('cfg-col-date').value    = app.settings.colDate    || 'O';
-  f('cfg-col-name').value    = app.settings.colName    || 'C';
-  f('cfg-col-cat').value     = app.settings.colCat     || 'D';
-  f('cfg-col-price').value   = app.settings.colPrice   || 'E';
+  f('cfg-sb-url').value       = app.settings.supabaseUrl       || '';
+  f('cfg-sb-key').value       = app.settings.supabaseKey       || '';
+  f('cfg-db-appkey').value    = app.settings.dropboxAppKey     || '';
+  f('cfg-db-appsecret').value = app.settings.dropboxAppSecret  || '';
+  f('cfg-db-refresh').value   = app.settings.dropboxRefreshToken || '';
+  f('cfg-col-barcode').value  = app.settings.colBarcode  || 'G';
+  f('cfg-col-location').value = app.settings.colLocation || 'B';
+  f('cfg-col-date').value     = app.settings.colDate     || 'O';
+  f('cfg-col-name').value     = app.settings.colName     || 'D';
+  f('cfg-col-cat').value      = app.settings.colCat      || 'H';
+  f('cfg-col-price').value    = app.settings.colPrice    || 'E';
 }
 
 function saveSettings() {
   const f = id => document.getElementById(id).value.trim();
   app.settings = {
     supabaseUrl: f('cfg-sb-url'), supabaseKey: f('cfg-sb-key'),
-    dropboxToken: f('cfg-db-token'),
-    colBarcode: f('cfg-col-barcode').toUpperCase() || 'A',
+    dropboxAppKey:      f('cfg-db-appkey'),
+    dropboxAppSecret:   f('cfg-db-appsecret'),
+    dropboxRefreshToken:f('cfg-db-refresh'),
+    dropboxAccessToken: '', // 저장 시 초기화 → 재발급
+    colBarcode:  f('cfg-col-barcode').toUpperCase()  || 'G',
     colLocation: f('cfg-col-location').toUpperCase() || 'B',
-    colDate: f('cfg-col-date').toUpperCase() || 'O',
-    colName: f('cfg-col-name').toUpperCase() || 'C',
-    colCat: f('cfg-col-cat').toUpperCase() || 'D',
-    colPrice: f('cfg-col-price').toUpperCase() || 'E',
+    colDate:     f('cfg-col-date').toUpperCase()     || 'O',
+    colName:     f('cfg-col-name').toUpperCase()     || 'D',
+    colCat:      f('cfg-col-cat').toUpperCase()      || 'H',
+    colPrice:    f('cfg-col-price').toUpperCase()    || 'E',
   };
   localStorage.setItem('miu-settings', JSON.stringify(app.settings));
   initSupabase();
@@ -1534,29 +1548,52 @@ function getExcelFilePath(date) {
   return `/공동판매_auto/${year}/${month}월/${year}.${pad(month)}_공동판매.xlsx`;
 }
 
+// Refresh Token으로 Access Token 자동 발급/갱신
+async function getDropboxToken() {
+  const s = app.settings;
+  if (!s.dropboxRefreshToken || !s.dropboxAppKey || !s.dropboxAppSecret) {
+    throw new Error('Dropbox App Key / App Secret / Refresh Token 설정이 필요해요.');
+  }
+  // 캐시된 토큰이 3시간 50분 이내면 재사용
+  const cached   = localStorage.getItem('db-access-token');
+  const cachedAt = parseInt(localStorage.getItem('db-access-token-at') || '0');
+  if (cached && (Date.now() - cachedAt) < 230 * 60 * 1000) return cached;
+
+  const params = new URLSearchParams({
+    grant_type:    'refresh_token',
+    refresh_token: s.dropboxRefreshToken,
+    client_id:     s.dropboxAppKey,
+    client_secret: s.dropboxAppSecret,
+  });
+  const res = await fetch('https://api.dropboxapi.com/oauth2/token', { method:'POST', body: params });
+  if (!res.ok) throw new Error('Dropbox 토큰 갱신 실패. App Key / Secret / Refresh Token을 확인해주세요.');
+  const data = await res.json();
+  localStorage.setItem('db-access-token', data.access_token);
+  localStorage.setItem('db-access-token-at', String(Date.now()));
+  return data.access_token;
+}
+
 async function dropboxPost(endpoint, body) {
-  // 표준 JSON POST — Authorization + Content-Type만 사용, CORS preflight 없음
+  const token = await getDropboxToken();
   const res = await fetch(`https://api.dropboxapi.com/2/${endpoint}`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${app.settings.dropboxToken}`,
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const status = res.status;
-    if (status === 401) throw new Error('Dropbox 토큰이 만료됐어요. 설정에서 토큰을 재발급해주세요.');
-    if (status === 409) throw new Error(`파일을 찾을 수 없어요.\n경로: ${body.path || ''}`);
-    throw new Error(err?.error_summary || `Dropbox 오류 (${status})`);
+    if (res.status === 401) { localStorage.removeItem('db-access-token'); throw new Error('Dropbox 인증 오류. 설정을 확인해주세요.'); }
+    if (res.status === 409) throw new Error(`파일을 찾을 수 없어요.\n경로: ${body.path || ''}`);
+    throw new Error(err?.error_summary || `Dropbox 오류 (${res.status})`);
   }
   return res.json();
 }
 
 async function loadExcelFromDropbox() {
-  const { dropboxToken } = app.settings;
-  if (!dropboxToken) throw new Error('Dropbox 토큰이 없어요. 설정을 확인해주세요.');
+  const { dropboxRefreshToken, dropboxAppKey, dropboxAppSecret } = app.settings;
+  if (!dropboxRefreshToken || !dropboxAppKey || !dropboxAppSecret) {
+    throw new Error('Dropbox 설정이 필요해요. 설정에서 App Key / App Secret / Refresh Token을 입력해주세요.');
+  }
 
   const path = getExcelFilePath();
   app.excelFilePath = path;
@@ -1587,29 +1624,23 @@ async function loadExcelFromDropbox() {
 }
 
 async function uploadExcelToDropbox(workbook) {
-  const { dropboxToken } = app.settings;
+  const token = await getDropboxToken();
   const data = XLSX.write(workbook, { type: 'array', bookType: 'xlsx', compression: true });
   const uploadPath = app.excelFilePath || getExcelFilePath();
-
-  // 업로드는 Content-Type: octet-stream이므로 Dropbox-API-Arg 헤더 필요
-  // 단, 경로를 toAsciiJson으로 인코딩해서 한글 헤더 문제 방지
   const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${dropboxToken}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
       'Dropbox-API-Arg': toAsciiJson({
-        path: uploadPath,
-        mode: 'overwrite',
-        autorename: false,
-        mute: false
+        path: uploadPath, mode: 'overwrite', autorename: false, mute: false
       })
     },
     body: new Uint8Array(data)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (res.status === 401) throw new Error('Dropbox 토큰이 만료됐어요. 설정에서 토큰을 재발급해주세요.');
+    if (res.status === 401) { localStorage.removeItem('db-access-token'); throw new Error('Dropbox 인증 오류.'); }
     throw new Error(err?.error_summary || `업로드 실패 (${res.status})`);
   }
 }
@@ -1870,24 +1901,21 @@ async function executeApproval() {
   ldg.style.display = 'flex';
 
   try {
-    // 제출완료 항목만 가져오기
+    // 제출완료 항목 조회
     const { data: items } = await app.supabase.from('session_items')
       .select('*').eq('session_id', app.selectedSession.id)
       .eq('is_submitted', true);
 
-    // 제출완료 항목만 엑셀 업데이트
-    await updateExcelForSession(app.selectedSession, items || []);
-
-    // 세션 상태 업데이트
+    // 세션 상태 업데이트 (엑셀 업데이트는 서버가 처리)
     await app.supabase.from('move_sessions').update({
       status: 'approved',
       approved_by: app.mgrApprover.name,
       approved_at: new Date().toISOString(),
+      excel_updated: false,
     }).eq('id', app.selectedSession.id);
 
     ldg.style.display = 'none';
 
-    // Generate slack summary
     generateSlackSummary(app.selectedSession, items || []);
     showScreen('s-manager-list');
 
