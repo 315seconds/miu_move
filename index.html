@@ -759,86 +759,94 @@ window.addEventListener('DOMContentLoaded', () => {
   renderHomeDate();
   loadHomeSessions();
 
-  // 물리 키코드 → 문자 변환 (e.code는 OS/IME 무관, 항상 물리 키 위치 반환)
-  // Android에서는 e.code가 'Unidentified'일 수 있어 e.key로 폴백
-  function charFromKeyEvent(e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  // Android 여부 감지
+  const isAndroid = /Android/i.test(navigator.userAgent);
 
-    // ① e.code 기반 (iOS·PC — IME 완전 차단)
-    const letters = {
-      'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e','KeyF':'f','KeyG':'g',
-      'KeyH':'h','KeyI':'i','KeyJ':'j','KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n',
-      'KeyO':'o','KeyP':'p','KeyQ':'q','KeyR':'r','KeyS':'s','KeyT':'t','KeyU':'u',
-      'KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z'
-    };
-    if (letters[e.code]) return e.shiftKey ? letters[e.code].toUpperCase() : letters[e.code];
-
-    const digits = {
-      'Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4',
-      'Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9'
-    };
-    if (digits[e.code] && !e.shiftKey) return digits[e.code];
-
-    const specials = { 'Minus': e.shiftKey ? '_' : '-', 'Period':'.', 'Slash':'/' };
-    if (specials[e.code] !== undefined) return specials[e.code];
-
-    // ② Android 폴백 — e.code가 없거나 'Unidentified'일 때 e.key 사용
-    // normalizeBarcode로 혹시 섞인 한글도 영문 변환
-    if (!e.code || e.code === 'Unidentified') {
-      const k = e.key;
-      if (k && k.length === 1) {
-        const normalized = normalizeBarcode(k);
-        return normalized.length === 1 ? normalized : k;
-      }
-    }
-
-    return null;
-  }
-
-  // 스캐너 전용: e.code 기반으로 버퍼 직접 관리 → IME 완전 우회
   const bi = document.getElementById('barcode-input');
-  let scanBuffer = '';
-  let scanTimer  = null;
+  let scanTimer = null;
 
-  bi.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
+  if (isAndroid) {
+    // ── Android: IME에 맡기고 input.value 통째로 읽기 ──
+    // e.preventDefault() 없이 IME가 자유롭게 input에 값 씀
+    bi.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(scanTimer);
+        const v = normalizeBarcode(bi.value);
+        bi.value = '';
+        if (v) processBarcode(v);
+      }
+    });
+
+    // 500ms 타이머 — Enter 없는 스캐너 대응
+    bi.addEventListener('input', () => {
       clearTimeout(scanTimer);
-      const v = scanBuffer.trim();
-      scanBuffer = '';
-      bi.value = '';
-      if (v) processBarcode(v);
-      return;
+      scanTimer = setTimeout(() => {
+        const v = normalizeBarcode(bi.value);
+        bi.value = '';
+        if (v) processBarcode(v);
+      }, 500);
+    });
+
+  } else {
+    // ── iOS / PC: e.code 기반 버퍼 직접 관리 (IME 완전 차단) ──
+    function charFromKeyEvent(e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return null;
+      const letters = {
+        'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e','KeyF':'f','KeyG':'g',
+        'KeyH':'h','KeyI':'i','KeyJ':'j','KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n',
+        'KeyO':'o','KeyP':'p','KeyQ':'q','KeyR':'r','KeyS':'s','KeyT':'t','KeyU':'u',
+        'KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z'
+      };
+      if (letters[e.code]) return e.shiftKey ? letters[e.code].toUpperCase() : letters[e.code];
+      const digits = {
+        'Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4',
+        'Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9'
+      };
+      if (digits[e.code] && !e.shiftKey) return digits[e.code];
+      const specials = { 'Minus': e.shiftKey ? '_' : '-', 'Period':'.', 'Slash':'/' };
+      if (specials[e.code] !== undefined) return specials[e.code];
+      return null;
     }
-    if (e.key === 'Backspace') {
-      e.preventDefault();
-      scanBuffer = scanBuffer.slice(0, -1);
-      bi.value = scanBuffer;
-      return;
-    }
-    const char = charFromKeyEvent(e);
-    if (char !== null) {
-      e.preventDefault();       // IME가 가로채기 전에 차단
-      scanBuffer += char;
-      bi.value = scanBuffer;
-      clearTimeout(scanTimer);
-      scanTimer = setTimeout(() => {  // Enter 없는 스캐너 대응
+
+    let scanBuffer = '';
+
+    bi.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(scanTimer);
         const v = scanBuffer.trim();
         scanBuffer = ''; bi.value = '';
         if (v) processBarcode(v);
-      }, 500);
-    }
-  });
+        return;
+      }
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        scanBuffer = scanBuffer.slice(0, -1);
+        bi.value = scanBuffer;
+        return;
+      }
+      const char = charFromKeyEvent(e);
+      if (char !== null) {
+        e.preventDefault();
+        scanBuffer += char;
+        bi.value = scanBuffer;
+        clearTimeout(scanTimer);
+        scanTimer = setTimeout(() => {
+          const v = scanBuffer.trim();
+          scanBuffer = ''; bi.value = '';
+          if (v) processBarcode(v);
+        }, 500);
+      }
+    });
 
-  // IME가 조합 시작하면 즉시 blur→focus로 끊어냄
-  bi.addEventListener('compositionstart', () => {
-    const saved = scanBuffer;
-    bi.blur();
-    requestAnimationFrame(() => { bi.focus(); scanBuffer = saved; bi.value = scanBuffer; });
-  });
-
-  // compositionend까지 왔으면 버퍼로 강제 덮어쓰기
-  bi.addEventListener('compositionend', () => { bi.value = scanBuffer; });
+    bi.addEventListener('compositionstart', () => {
+      const saved = scanBuffer;
+      bi.blur();
+      requestAnimationFrame(() => { bi.focus(); scanBuffer = saved; bi.value = scanBuffer; });
+    });
+    bi.addEventListener('compositionend', () => { bi.value = scanBuffer; });
+  }
 
   // lookup enter
   document.getElementById('lookup-input').addEventListener('keydown', e => {
