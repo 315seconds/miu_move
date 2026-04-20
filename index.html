@@ -283,7 +283,7 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:28px;margin-bottom:12px">
       <h2 class="section-title" style="margin:0">오늘 진행 중인 세션</h2>
-      <button onclick="loadHomeSessions()" style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text2);font-family:inherit;font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer">↻ 새로고침</button>
+      <button onclick="loadHomeSessions(); this.textContent='↻ 완료'; setTimeout(()=>this.textContent='↻ 새로고침', 1000)" style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text2);font-family:inherit;font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;transition:all .15s;active:scale(.95)">↻ 새로고침</button>
     </div>
     <div id="home-sessions"></div>
   </div>
