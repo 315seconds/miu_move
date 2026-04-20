@@ -1075,12 +1075,33 @@ async function loadHomeSessions() {
   if (!app.supabase) return;
   const today = toDateStr(new Date());
   try {
-    // 대기중: 날짜 무관 전부 / 완료: 오늘 것만
+    // 오늘 날짜가 아닌 pending 세션 자동 만료 처리
+    const { data: oldPending } = await app.supabase
+      .from('move_sessions')
+      .select('id, session_items(count)')
+      .eq('status', 'pending')
+      .neq('session_date', today);
+
+    if (oldPending && oldPending.length > 0) {
+      for (const s of oldPending) {
+        const count = s.session_items?.[0]?.count ?? 0;
+        if (count === 0) {
+          // 빈 세션 → 삭제
+          await app.supabase.from('session_items').delete().eq('session_id', s.id);
+          await app.supabase.from('move_sessions').delete().eq('id', s.id);
+        } else {
+          // 찍힌 물건 있는 세션 → expired로 변경
+          await app.supabase.from('move_sessions').update({ status: 'expired' }).eq('id', s.id);
+        }
+      }
+    }
+
+    // 대기중: 오늘 것만 / 완료: 오늘 것만
     const [pendingRes, approvedRes] = await Promise.all([
       app.supabase.from('move_sessions').select('*, session_items(count)')
-        .eq('status', 'pending').order('created_at', { ascending: false }),
+        .eq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
       app.supabase.from('move_sessions').select('*, session_items(count)')
-        .neq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
+        .neq('status', 'pending').neq('status', 'expired').eq('session_date', today).order('created_at', { ascending: false }),
     ]);
     const all = [...(pendingRes.data || []), ...(approvedRes.data || [])];
     const el = document.getElementById('home-sessions');
