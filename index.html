@@ -323,90 +323,6 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <div class="settings-hint">VM 서버의 .env 파일에서 DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN 값을 복사하세요. 한 번 설정하면 만료되지 않아요.</div>
     </div>
 
-    <div class="divider"></div>
-    <h2 class="section-title" style="margin-top:0">엑셀 컬럼 설정</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">바코드 열</label>
-        <input class="form-input" id="cfg-col-barcode" placeholder="A" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">위치 열 (B)</label>
-        <input class="form-input" id="cfg-col-location" placeholder="B" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">수정일 열 (O)</label>
-        <input class="form-input" id="cfg-col-date" placeholder="O" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">상품명 열</label>
-        <input class="form-input" id="cfg-col-name" placeholder="C" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">카테고리 열</label>
-        <input class="form-input" id="cfg-col-cat" placeholder="D" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">가격 열</label>
-        <input class="form-input" id="cfg-col-price" placeholder="E" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
-      </div>
-    </div>
-    <div class="settings-hint" style="margin-top:10px">공동판매 엑셀 파일의 '입고' 시트 기준. 실제 파일에 맞게 조정해주세요.</div>
-
-    <div class="divider"></div>
-    <h2 class="section-title" style="margin-top:0">Supabase 테이블 생성 SQL</h2>
-    <div class="settings-hint" style="margin-bottom:8px">아직 테이블이 없다면 Supabase → SQL Editor에서 아래 SQL을 실행하세요.</div>
-    <div class="sql-box">create table handlers (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  is_active boolean default true,
-  created_at timestamptz default now()
-);
-
-create table locations (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  is_active boolean default true,
-  created_at timestamptz default now()
-);
-
-create table approvers (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  pin text not null,
-  created_at timestamptz default now()
-);
-
-create table move_sessions (
-  id uuid default gen_random_uuid() primary key,
-  session_date date not null,
-  from_location text not null,
-  to_location text not null,
-  status text default 'pending',
-  created_by text not null,
-  approved_by text,
-  approved_at timestamptz,
-  is_correction boolean default false,
-  correction_reason text,
-  created_at timestamptz default now()
-);
-
-create table session_items (
-  id uuid default gen_random_uuid() primary key,
-  session_id uuid references move_sessions(id),
-  barcode text not null,
-  product_name text,
-  category text,
-  price text,
-  current_location text,
-  scanned_by text not null,
-  scanned_at timestamptz default now(),
-  is_submitted boolean default false,
-  is_error boolean default false,
-  error_msg text
-);
-
-alter publication supabase_realtime add table session_items;</div>
   </div>
 </div>
 
@@ -744,6 +660,38 @@ alter publication supabase_realtime add table session_items;</div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="addApprover()">추가</button>
     </div>
+
+    <div class="divider"></div>
+
+    <h2 class="section-title" style="margin-top:0">엑셀 컬럼 설정</h2>
+    <div class="settings-hint" style="margin-bottom:12px">공동판매 파일의 열 위치가 변경됐을 때만 수정하세요.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">바코드 열</label>
+        <input class="form-input" id="cfg-col-barcode" placeholder="G" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">위치 열</label>
+        <input class="form-input" id="cfg-col-location" placeholder="B" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">수정일 열</label>
+        <input class="form-input" id="cfg-col-date" placeholder="O" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">상품명 열</label>
+        <input class="form-input" id="cfg-col-name" placeholder="D" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">카테고리 열</label>
+        <input class="form-input" id="cfg-col-cat" placeholder="H" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">가격 열</label>
+        <input class="form-input" id="cfg-col-price" placeholder="E" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveColSettings()" style="margin-top:16px">컬럼 설정 저장</button>
   </div>
 </div>
 
@@ -2401,6 +2349,15 @@ async function loadAdmin() {
   if (!app.supabase) return;
   if (!app.adminAuthed) { showScreen('s-admin-auth', false); return; }
 
+  // 컬럼 설정값 로드
+  const f = id => document.getElementById(id);
+  if (f('cfg-col-barcode'))  f('cfg-col-barcode').value  = app.settings.colBarcode  || 'G';
+  if (f('cfg-col-location')) f('cfg-col-location').value = app.settings.colLocation || 'B';
+  if (f('cfg-col-date'))     f('cfg-col-date').value     = app.settings.colDate     || 'O';
+  if (f('cfg-col-name'))     f('cfg-col-name').value     = app.settings.colName     || 'D';
+  if (f('cfg-col-cat'))      f('cfg-col-cat').value      = app.settings.colCat      || 'H';
+  if (f('cfg-col-price'))    f('cfg-col-price').value    = app.settings.colPrice    || 'E';
+
   // 각 쿼리 독립 실행 — 하나 실패해도 나머지에 영향 없음
   try {
     const { data } = await app.supabase.from('locations').select('*').order('is_active', { ascending: false }).order('name');
@@ -2453,6 +2410,18 @@ async function deleteHandler(id, name) {
       { label: '삭제', class: 'btn-danger', fn: async () => { closeModal(); await sbQuery(sb => sb.from('handlers').delete().eq('id', id)); loadAdmin(); showToast('삭제됐어요', 'success'); }},
       { label: '취소', class: 'btn-secondary', fn: closeModal }
     ]);
+}
+
+function saveColSettings() {
+  const f = id => document.getElementById(id)?.value.trim().toUpperCase();
+  app.settings.colBarcode  = f('cfg-col-barcode')  || 'G';
+  app.settings.colLocation = f('cfg-col-location') || 'B';
+  app.settings.colDate     = f('cfg-col-date')     || 'O';
+  app.settings.colName     = f('cfg-col-name')     || 'D';
+  app.settings.colCat      = f('cfg-col-cat')      || 'H';
+  app.settings.colPrice    = f('cfg-col-price')    || 'E';
+  localStorage.setItem('miu-settings', JSON.stringify(app.settings));
+  showToast('컬럼 설정이 저장됐어요', 'success');
 }
 
 function renderLocations(locs) {
