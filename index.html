@@ -1862,7 +1862,7 @@ async function executeApproval() {
       .select('*').eq('session_id', app.selectedSession.id)
       .eq('is_submitted', true);
 
-    // 세션 상태 업데이트 (엑셀 업데이트는 서버가 처리)
+    // 세션 상태 업데이트
     await app.supabase.from('move_sessions').update({
       status: 'approved',
       approved_by: app.mgrApprover.name,
@@ -1870,8 +1870,30 @@ async function executeApproval() {
       excel_updated: false,
     }).eq('id', app.selectedSession.id);
 
-    ldg.style.display = 'none';
+    // VM에 직접 호출 (Supabase Webhook 대신)
+    const vmUrl = 'http://43.202.62.74:8080/webhook/move-approved';
+    try {
+      await fetch(vmUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-webhook-secret': 'miu2026secret',
+        },
+        body: JSON.stringify({
+          record: {
+            id: app.selectedSession.id,
+            status: 'approved',
+            excel_updated: false,
+          }
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch(vmErr) {
+      // VM 호출 실패해도 승인 자체는 완료된 것으로 처리
+      console.warn('VM 직접 호출 실패 (엑셀 업데이트 지연될 수 있음):', vmErr.message);
+    }
 
+    ldg.style.display = 'none';
     generateSlackSummary(app.selectedSession, items || []);
     showScreen('s-manager-list');
 
