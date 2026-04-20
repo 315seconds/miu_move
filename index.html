@@ -407,6 +407,10 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <div class="scan-pulse"></div>
       <input class="scan-input-field" id="barcode-input" placeholder="바코드를 스캔하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none" lang="en">
     </div>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <input class="scan-input-field" id="manual-barcode-input" placeholder="바코드 직접 입력..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;font-size:13px;padding:9px 12px" inputmode="text">
+      <button onclick="submitManualBarcode()" style="background:var(--s3);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text2);font-family:inherit;font-size:12px;font-weight:700;padding:9px 14px;cursor:pointer;white-space:nowrap;flex-shrink:0">✚ 추가</button>
+    </div>
   </div>
   <div class="scan-list" id="scan-list"></div>
 </div>
@@ -847,6 +851,11 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     bi.addEventListener('compositionend', () => { bi.value = scanBuffer; });
   }
+
+  // 수동 입력 Enter 지원
+  document.getElementById('manual-barcode-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); submitManualBarcode(); }
+  });
 
   // lookup enter
   document.getElementById('lookup-input').addEventListener('keydown', e => {
@@ -1393,6 +1402,14 @@ function addItemToUI(item, prepend = true) {
   if (prepend && list.firstChild) list.insertBefore(div, list.firstChild);
   else list.appendChild(div);
   updateScanCount();
+}
+
+function submitManualBarcode() {
+  const input = document.getElementById('manual-barcode-input');
+  const val = normalizeBarcode(input.value);
+  input.value = '';
+  if (val) processBarcode(val);
+  else showToast('바코드를 입력해주세요', 'error');
 }
 
 function completeHanger() {
