@@ -1899,30 +1899,35 @@ async function executeApproval() {
   }
 }
 
+function buildCategoryLine(items) {
+  // 카테고리별 집계
+  const catMap = {};
+  items.forEach(i => {
+    const cat = (i.category || '기타').trim() || '기타';
+    catMap[cat] = (catMap[cat] || 0) + 1;
+  });
+  return Object.entries(catMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, cnt]) => `${cat} ${cnt}`)
+    .join(' / ');
+}
+
 function generateSlackSummary(session, items) {
   const today = new Date();
   const dateStr = `${today.getFullYear()}.${pad(today.getMonth()+1)}.${pad(today.getDate())}`;
-  const valid   = items.filter(i => i.is_submitted && !i.is_error);
-  const errors  = items.filter(i => i.is_error);
-  const members = [...new Set(valid.map(i => i.scanned_by))];
-  const prefix  = session.is_correction ? '[정정이동]' : '[이동보고]';
+  const valid  = items.filter(i => i.is_submitted && !i.is_error);
+  const errors = items.filter(i => i.is_error);
 
-  let text = `${prefix} ${session.from_location} → ${session.to_location}  |  ${dateStr}
-담당: ${members.join(', ')}  /  승인: ${app.mgrApprover.name}
-총 ${valid.length}벌${errors.length > 0 ? ` (오류 ${errors.length}건 제외)` : ''}`;
+  let text = `[이동보고] ${dateStr}\n`;
+  text += `${'─'.repeat(24)}\n`;
+  text += `${session.from_location} → ${session.to_location}   ${valid.length}벌\n`;
 
-  if (session.is_correction && session.correction_reason) {
-    text += `\n사유: ${session.correction_reason}`;
+  if (valid.length > 0) {
+    text += `  ${buildCategoryLine(valid)}\n`;
   }
 
-  text += `\n${'─'.repeat(30)}`;
-  valid.forEach(item => {
-    text += `\n${item.barcode}${item.product_name ? '  ' + item.product_name : ''}`;
-  });
-
   if (errors.length > 0) {
-    text += `\n\n⚠ 오류 (엑셀 미반영)\n`;
-    errors.forEach(item => { text += `${item.barcode}  ${item.error_msg||''}\n`; });
+    text += `  ⚠ 오류 ${errors.length}건 (엑셀 미반영)\n`;
   }
 
   document.getElementById('slack-text').textContent = text;
@@ -1934,7 +1939,6 @@ async function generateDailySummary() {
   const dateStr = today.replace(/-/g, '.');
 
   try {
-    // 오늘 승인된 세션 전체 조회
     const { data: sessions } = await app.supabase
       .from('move_sessions')
       .select('*')
@@ -1947,7 +1951,6 @@ async function generateDailySummary() {
       return;
     }
 
-    // 세션별 아이템 조회
     const ids = sessions.map(s => s.id);
     const { data: allItems } = await app.supabase
       .from('session_items')
@@ -1962,25 +1965,22 @@ async function generateDailySummary() {
       itemMap[i.session_id].push(i);
     });
 
-    let text = `[이동보고] ${dateStr} 일일 요약\n`;
-    text += `${'═'.repeat(30)}\n`;
+    let text = `[이동보고] ${dateStr}\n`;
+    text += `${'═'.repeat(24)}\n`;
 
     let totalCount = 0;
     sessions.forEach(s => {
       const items = itemMap[s.id] || [];
-      const members = [...new Set(items.map(i => i.scanned_by))];
-      text += `\n▶ ${s.from_location} → ${s.to_location}  (${items.length}벌)\n`;
-      text += `   담당: ${members.join(', ')}  /  승인: ${s.approved_by} ${formatTime(s.approved_at)}\n`;
-      items.forEach(i => {
-        text += `   ${i.barcode}${i.product_name ? '  ' + i.product_name : ''}\n`;
-      });
+      text += `\n${s.from_location} → ${s.to_location}   ${items.length}벌\n`;
+      if (items.length > 0) {
+        text += `  ${buildCategoryLine(items)}\n`;
+      }
       totalCount += items.length;
     });
 
-    text += `\n${'─'.repeat(30)}\n`;
-    text += `총 ${sessions.length}건  ${totalCount}벌 이동 완료`;
+    text += `\n${'─'.repeat(24)}\n`;
+    text += `총 ${totalCount}벌`;
 
-    // 슬랙 요약 화면에 표시
     document.getElementById('slack-text').textContent = text;
     showScreen('s-slack-summary');
 
