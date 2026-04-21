@@ -3,287 +3,809 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>이동관리 — 마켓인유</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#FFF8EE">
+<title>마유 무브 · PLAYBLOCK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root {
-  --bg: #0D0D0D;
-  --s1: #161616;
-  --s2: #1F1F1F;
-  --s3: #2A2A2A;
-  --border: #2E2E2E;
-  --accent: #F5A623;
-  --accent-dim: rgba(245,166,35,0.12);
-  --accent-glow: rgba(245,166,35,0.3);
-  --text: #F0EBE0;
-  --text2: #9A9A9A;
-  --text3: #555;
-  --danger: #E55353;
-  --danger-dim: rgba(229,83,83,0.12);
-  --success: #3DBA6F;
-  --success-dim: rgba(61,186,111,0.12);
-  --r: 12px;
-  --r-sm: 8px;
-  --font-mono: 'IBM Plex Mono', monospace;
+/* ════════════════════════════════════════════════════
+   MIU MOVE · PLAYBLOCK
+   Soft claymorphism · 3D icons · pastel
+   Instrument Serif display + Inter UI + Mono data
+   ════════════════════════════════════════════════════ */
+:root{
+  /* pastels */
+  --cream:      #FFF7EC;
+  --cream-2:    #FDEFDC;
+  --cream-3:    #F6E4CE;
+  --ink:        #2A2236;
+  --ink-2:      #4A3F5C;
+  --ink-3:      #7A7288;
+  --ink-4:      #AFA8BC;
+  --paper:      #FFFFFF;
+
+  /* candy palette — 3D icon colors */
+  --purple:     #7B5CFF;
+  --purple-2:   #9A80FF;
+  --purple-dk:  #4A32C4;
+  --yellow:     #FFD85E;
+  --yellow-2:   #FFE799;
+  --yellow-dk:  #C99B1E;
+  --mint:       #7DE0BC;
+  --mint-2:     #A8EFD2;
+  --mint-dk:    #2FA57D;
+  --coral:      #FF9A8A;
+  --coral-2:    #FFBDB1;
+  --coral-dk:   #C85644;
+  --sky:        #8FC8FF;
+  --sky-2:      #B9DEFF;
+  --sky-dk:     #3D7DC5;
+
+  /* dim bg wash */
+  --purple-bg:  #EFEAFF;
+  --yellow-bg:  #FFF4D1;
+  --mint-bg:    #DFF7EC;
+  --coral-bg:   #FFE3DD;
+  --sky-bg:     #E3F0FF;
+
+  /* semantic */
+  --ok:         #39C28A;
+  --warn:       #F3A824;
+  --err:        #F06E5A;
+
+  --r:    22px;
+  --r-sm: 14px;
+  --r-lg: 32px;
+  --r-pill: 999px;
+
+  --font-display: 'Instrument Serif', 'Noto Sans KR', Georgia, serif;
+  --font-ui:      'Inter', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --font-hand:    'Gaegu', 'Noto Sans KR', cursive;
+
+  /* signature pillow shadow */
+  --shadow-soft: 0 6px 20px -6px rgba(42,34,54,.18), 0 2px 6px -2px rgba(42,34,54,.08);
+  --shadow-pop:  0 14px 36px -10px rgba(42,34,54,.22), 0 4px 10px -3px rgba(42,34,54,.10);
+  --shadow-deep: 0 22px 50px -12px rgba(42,34,54,.30), 0 6px 14px -4px rgba(42,34,54,.14);
+  --rim: 0 1px 0 rgba(255,255,255,.8) inset, 0 -2px 0 rgba(42,34,54,.04) inset;
 }
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;overflow-x:hidden}
-body{max-width:480px;margin:0 auto;min-height:100vh;position:relative}
+html,body{height:100%;background:var(--cream);color:var(--ink);font-family:var(--font-ui);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body{
+  max-width:480px;margin:0 auto;min-height:100vh;position:relative;
+  background:
+    radial-gradient(circle at 15% 8%, var(--yellow-bg) 0%, transparent 38%),
+    radial-gradient(circle at 92% 22%, var(--purple-bg) 0%, transparent 40%),
+    radial-gradient(circle at 6% 75%, var(--mint-bg) 0%, transparent 42%),
+    radial-gradient(circle at 95% 90%, var(--coral-bg) 0%, transparent 38%),
+    var(--cream);
+  background-attachment: fixed;
+}
+
+::selection{background:var(--purple);color:#fff}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--ink-4);border-radius:3px}
 
 /* ── SCREEN SYSTEM ── */
-.screen{display:none;min-height:100vh;flex-direction:column;animation:fadeIn 0.18s ease}
-.screen.active{display:flex}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.screen{display:none;min-height:100vh;flex-direction:column;position:relative;z-index:1}
+.screen.active{display:flex;opacity:1;transform:none}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
 
 /* ── TOPBAR ── */
-.topbar{display:flex;align-items:center;gap:12px;padding:16px 20px;background:var(--s1);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
-.topbar-back{width:36px;height:36px;border-radius:50%;background:var(--s2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s}
-.topbar-back:hover{background:var(--s3)}
-.topbar-back svg{width:18px;height:18px;fill:none;stroke:var(--text2);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-.topbar-title{font-size:16px;font-weight:700;flex:1}
-.topbar-sub{font-size:12px;color:var(--text2);margin-top:1px}
-.topbar-action{font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;padding:6px 2px;white-space:nowrap}
+.topbar{
+  display:flex;align-items:center;gap:12px;
+  padding:16px 18px;background:transparent;
+  position:sticky;top:0;z-index:10;
+}
+.topbar-back{
+  width:42px;height:42px;border-radius:var(--r-pill);
+  background:var(--paper);border:none;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;transition:all .18s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.topbar-back:hover{transform:translateY(-1px) rotate(-8deg);box-shadow:var(--shadow-pop),var(--rim)}
+.topbar-back:active{transform:scale(.9)}
+.topbar-back svg{width:18px;height:18px;fill:none;stroke:var(--ink);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.topbar-title{font-family:var(--font-display);font-size:24px;font-weight:400;letter-spacing:-.01em;flex:1;line-height:1}
+.topbar-sub{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);margin-top:4px;text-transform:uppercase;letter-spacing:.08em}
+.topbar-action{
+  font-family:var(--font-ui);font-size:13px;font-weight:600;
+  color:var(--ink);cursor:pointer;padding:10px 16px;
+  white-space:nowrap;
+  background:var(--yellow);border-radius:var(--r-pill);
+  box-shadow:var(--shadow-soft),var(--rim);
+  transition:all .18s cubic-bezier(.34,1.56,.64,1);
+}
+.topbar-action:hover{transform:translateY(-1px) rotate(-2deg);box-shadow:var(--shadow-pop),var(--rim)}
+.topbar-action:active{transform:scale(.94)}
 
-/* ── CONTENT AREA ── */
-.content{flex:1;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.content-pad{padding:24px 20px}
+/* ── CONTENT ── */
+.content{flex:1;padding:8px 18px 140px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 
 /* ── TYPOGRAPHY ── */
-h1.page-title{font-size:26px;font-weight:900;line-height:1.2;margin-bottom:6px}
-h2.section-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;margin-top:24px}
-h2.section-title:first-child{margin-top:0}
-p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px}
+h1.page-title{
+  font-family:var(--font-display);font-size:52px;font-weight:400;
+  line-height:.96;margin-bottom:12px;letter-spacing:-.02em;color:var(--ink);
+}
+h1.page-title em{font-style:italic;color:var(--purple)}
+h2.section-title{
+  font-family:var(--font-ui);font-size:11px;font-weight:700;
+  color:var(--ink-3);text-transform:uppercase;letter-spacing:.12em;
+  margin-bottom:12px;margin-top:28px;
+  display:flex;align-items:center;gap:8px;
+}
+h2.section-title:first-child{margin-top:8px}
+h2.section-title::before{content:'✦';color:var(--purple);font-size:14px;font-family:var(--font-display)}
+p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24px}
 
 /* ── CARDS ── */
-.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.card+.card{margin-top:10px}
-.card-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.card-body{padding:16px}
-.card-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.card{
+  background:var(--paper);border:none;
+  border-radius:var(--r);overflow:hidden;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.card+.card{margin-top:12px}
+.card-header{
+  padding:16px 18px;border-bottom:1px dashed var(--cream-3);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-body{padding:18px}
+.card-row{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px dashed var(--cream-3)}
 .card-row:last-child{border-bottom:none}
-.card-row-label{font-size:13px;color:var(--text2)}
-.card-row-value{font-size:14px;font-weight:600}
+.card-row-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+.card-row-value{font-size:14px;font-weight:600;color:var(--ink)}
 
 /* ── BUTTONS ── */
-.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px;border-radius:var(--r);border:none;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
-.btn:active{transform:scale(.97)}
-.btn-primary{background:var(--accent);color:#000}
-.btn-primary:hover{background:#fdb83a}
-.btn-secondary{background:var(--s2);color:var(--text);border:1px solid var(--border)}
-.btn-secondary:hover{background:var(--s3)}
-.btn-danger{background:var(--danger-dim);color:var(--danger);border:1px solid rgba(229,83,83,0.25)}
-.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}
-.btn-sm{padding:10px 16px;font-size:13px;width:auto}
-.btn-icon{width:36px;height:36px;padding:0;border-radius:50%}
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;padding:18px 20px;
+  border-radius:var(--r-pill);border:none;
+  font-family:var(--font-ui);font-size:15px;font-weight:700;
+  letter-spacing:-.005em;cursor:pointer;
+  transition:all .18s cubic-bezier(.34,1.56,.64,1);
+  background:var(--ink);color:var(--paper);
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-pop),var(--rim)}
+.btn:active{transform:translateY(0) scale(.97)}
+.btn-primary{background:linear-gradient(180deg,var(--purple-2),var(--purple));color:#fff;box-shadow:0 10px 24px -8px rgba(123,92,255,.55),0 1px 0 rgba(255,255,255,.3) inset,0 -3px 0 rgba(74,50,196,.4) inset}
+.btn-primary:hover{box-shadow:0 16px 32px -8px rgba(123,92,255,.65),0 1px 0 rgba(255,255,255,.3) inset,0 -3px 0 rgba(74,50,196,.4) inset}
+.btn-secondary{background:var(--paper);color:var(--ink);border:1px solid var(--cream-3)}
+.btn-danger{background:linear-gradient(180deg,#FFA99B,var(--err));color:#fff;box-shadow:0 10px 24px -8px rgba(240,110,90,.45),0 1px 0 rgba(255,255,255,.3) inset,0 -3px 0 rgba(200,86,68,.35) inset}
+.btn-ghost{background:transparent;color:var(--ink-3);box-shadow:none}
+.btn-ghost:hover{background:var(--paper);color:var(--ink);box-shadow:var(--shadow-soft)}
+.btn-sm{padding:10px 18px;font-size:12px;width:auto}
+.btn-icon{width:42px;height:42px;padding:0;border-radius:var(--r-pill)}
 .btn+.btn{margin-top:10px}
-.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:grayscale(.4)}
 
-/* ── HOME TILES ── */
-.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
-.home-tile{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:20px 16px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:10px;aspect-ratio:1;justify-content:flex-end}
-.home-tile:hover{border-color:var(--accent);background:var(--accent-dim)}
-.home-tile:active{transform:scale(.96)}
-.home-tile-icon{font-size:28px;line-height:1}
-.home-tile-label{font-size:14px;font-weight:700;line-height:1.3}
-.home-tile-sub{font-size:11px;color:var(--text2);margin-top:2px}
-.home-tile.accent{background:var(--accent);border-color:var(--accent)}
-.home-tile.accent .home-tile-label,.home-tile.accent .home-tile-sub{color:#000}
+/* ══════════════════════════════════════════
+   HOME — playful dispatch board
+   ══════════════════════════════════════════ */
+.home-hero{padding:28px 20px 18px;position:relative}
+.home-mark{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.home-mark-logo{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--font-ui);font-size:13px;font-weight:800;color:var(--ink);
+  background:var(--paper);padding:8px 14px 8px 10px;border-radius:var(--r-pill);
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.home-mark-logo .blob{
+  width:22px;height:22px;border-radius:50%;
+  background:
+    radial-gradient(circle at 30% 30%, #fff 0%, transparent 50%),
+    linear-gradient(135deg,var(--yellow) 0%, var(--coral) 100%);
+  box-shadow:0 2px 4px rgba(255,154,138,.4);
+  animation:wobble 3s ease-in-out infinite;
+}
+@keyframes wobble{
+  0%,100%{transform:rotate(-6deg) scale(1)}
+  50%{transform:rotate(8deg) scale(1.05)}
+}
+.home-mark-meta{
+  font-family:var(--font-mono);font-size:10px;color:var(--ink-3);
+  text-transform:uppercase;letter-spacing:.1em;text-align:right;
+}
+.home-mark-meta strong{color:var(--ink);font-weight:700}
+#home-settings-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  background:var(--paper);padding:6px 10px;border-radius:var(--r-pill);
+  margin-top:6px;cursor:pointer;box-shadow:var(--shadow-soft);
+  transition:transform .18s;
+}
+#home-settings-btn:hover{transform:rotate(30deg)}
+
+.home-title{
+  font-family:var(--font-display);font-weight:400;
+  font-size:72px;line-height:.94;letter-spacing:-.025em;
+  color:var(--ink);
+}
+.home-title em{
+  font-style:italic;color:var(--purple);position:relative;display:inline-block;
+}
+.home-title em::after{
+  content:'';position:absolute;bottom:-2px;left:-4px;right:-4px;height:10px;
+  background:var(--yellow);border-radius:var(--r-pill);z-index:-1;opacity:.6;
+}
+.home-subtitle{
+  margin-top:16px;display:flex;align-items:center;gap:10px;
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-2);
+  text-transform:uppercase;letter-spacing:.08em;
+}
+.home-subtitle .pill{
+  background:var(--mint);color:var(--ink);padding:4px 10px;
+  border-radius:var(--r-pill);font-weight:700;letter-spacing:.06em;
+  box-shadow:var(--rim);
+}
+
+/* home grid */
+.home-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;
+  padding:20px 18px 10px;
+}
+.home-tile{
+  background:var(--paper);border:none;border-radius:var(--r-lg);
+  padding:20px 18px 18px;cursor:pointer;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1);
+  display:flex;flex-direction:column;gap:14px;
+  min-height:170px;position:relative;overflow:hidden;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.home-tile:hover{transform:translateY(-4px) rotate(-.5deg);box-shadow:var(--shadow-pop),var(--rim)}
+.home-tile:active{transform:translateY(-1px) scale(.98)}
+
+.home-tile-icon{
+  width:56px;height:56px;display:flex;align-items:center;justify-content:center;
+  border-radius:20px;position:relative;
+  filter:drop-shadow(0 6px 10px rgba(42,34,54,.18));
+}
+.home-tile-icon svg{width:100%;height:100%;display:block}
+
+.home-tile-label{
+  font-family:var(--font-display);font-size:22px;font-weight:400;
+  line-height:1.05;letter-spacing:-.01em;color:var(--ink);
+  margin-top:auto;
+}
+.home-tile-sub{
+  font-family:var(--font-mono);font-size:10px;color:var(--ink-3);
+  margin-top:4px;text-transform:uppercase;letter-spacing:.08em;
+}
+
+/* accent tile — full width */
+.home-tile.accent{
+  grid-column:1 / -1;min-height:160px;
+  background:linear-gradient(135deg,#9A80FF 0%, #7B5CFF 100%);
+  color:#fff;flex-direction:row;align-items:center;gap:20px;
+  box-shadow:0 18px 40px -12px rgba(123,92,255,.5),var(--rim);
+}
+.home-tile.accent .home-tile-icon{width:92px;height:92px;flex-shrink:0;filter:drop-shadow(0 10px 16px rgba(0,0,0,.25))}
+.home-tile.accent .home-tile-label{color:#fff;font-size:30px;margin:0}
+.home-tile.accent .home-tile-sub{color:rgba(255,255,255,.78)}
+.home-tile.accent::before{
+  content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;
+  border-radius:50%;background:rgba(255,255,255,.08);
+}
+.home-tile.accent::after{
+  content:'';position:absolute;bottom:-20px;right:20px;width:60px;height:60px;
+  border-radius:50%;background:rgba(255,216,94,.2);
+}
+.home-tile.accent:hover{transform:translateY(-3px)}
+
+.home-sessions-wrap{padding:14px 20px 0}
 
 /* ── FORM ── */
-.form-group{margin-bottom:16px}
-.form-label{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:block}
-.form-input{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:inherit;font-size:15px;padding:14px 16px;outline:none;transition:border-color .15s}
-.form-input:focus{border-color:var(--accent)}
-.form-input::placeholder{color:var(--text3)}
-.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;cursor:pointer}
+.form-group{margin-bottom:18px}
+.form-label{
+  font-family:var(--font-ui);font-size:12px;font-weight:700;
+  color:var(--ink-2);
+  margin-bottom:10px;display:flex;align-items:center;gap:8px;
+}
+.form-label::before{content:'•';color:var(--purple);font-size:18px;line-height:0}
+.form-input{
+  width:100%;background:var(--paper);
+  border:1.5px solid transparent;border-radius:var(--r-sm);
+  color:var(--ink);font-family:var(--font-ui);font-size:15px;font-weight:500;
+  padding:15px 16px;outline:none;transition:all .18s;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.form-input:focus{border-color:var(--purple);box-shadow:0 0 0 4px rgba(123,92,255,.18),var(--shadow-soft)}
+.form-input::placeholder{color:var(--ink-4)}
+.form-select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237B5CFF' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 16px center;
+  padding-right:40px;cursor:pointer;
+}
 
 /* ── BADGES ── */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
-.badge-pending{background:rgba(245,166,35,0.15);color:var(--accent)}
-.badge-approved{background:var(--success-dim);color:var(--success)}
-.badge-correction{background:rgba(138,100,255,0.15);color:#a478ff}
-.badge-danger{background:var(--danger-dim);color:var(--danger)}
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:var(--r-pill);
+  font-family:var(--font-ui);font-size:11px;font-weight:700;
+  white-space:nowrap;letter-spacing:.02em;
+}
+.badge-pending{color:#8A6A00;background:var(--yellow)}
+.badge-approved{color:#fff;background:var(--ok)}
+.badge-correction{color:#fff;background:var(--purple)}
+.badge-danger{color:#fff;background:var(--err)}
 .badge-dot::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block}
 
-/* ── SCAN LIST ── */
-.scan-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--s1);border-bottom:1px solid var(--border);position:sticky;top:56px;z-index:5}
-.scan-count{font-size:22px;font-weight:900;color:var(--accent);font-family:var(--font-mono)}
-.scan-count-label{font-size:11px;color:var(--text2);margin-top:1px}
-.scan-route{font-size:13px;color:var(--text2)}
-.scan-route strong{color:var(--text);font-weight:700}
-
-.scan-input-area{padding:12px 16px;background:var(--s2);border-bottom:1px solid var(--border)}
-.scan-input-wrap{position:relative;display:flex;align-items:center;gap:8px}
-.scan-input-field{flex:1;background:var(--s1);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;padding:12px 14px;outline:none;transition:border-color .15s}
-.scan-input-field:focus{border-color:var(--accent)}
-.scan-pulse{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 0 var(--success);animation:pulse 2s infinite;flex-shrink:0}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,186,111,.6)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
-
-.scan-list{flex:1;overflow-y:auto}
-.scan-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);animation:slideIn .15s ease}
-@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
-.scan-item-num{font-family:var(--font-mono);font-size:11px;color:var(--text3);width:24px;text-align:right;flex-shrink:0}
-.scan-item-info{flex:1;min-width:0}
-.scan-item-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.scan-item-barcode{font-family:var(--font-mono);font-size:11px;color:var(--text2);margin-top:1px}
-.scan-item-meta{font-size:11px;color:var(--text2)}
-.scan-item-by{font-size:11px;color:var(--text3);flex-shrink:0}
-.scan-item-remove{width:28px;height:28px;border-radius:50%;background:var(--s3);border:none;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .1s}
-.scan-item-remove:hover{background:var(--danger-dim);color:var(--danger)}
-.scan-item.error{background:var(--danger-dim);opacity:.7}
-.scan-item.error .scan-item-name{color:var(--danger)}
-
 /* ── SESSION CARDS ── */
-.session-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;cursor:pointer;transition:all .15s;margin-bottom:10px}
-.session-card:hover{border-color:var(--accent);background:var(--accent-dim)}
-.session-card:active{transform:scale(.98)}
-.session-route{font-size:16px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:6px}
-.session-route-arrow{color:var(--accent)}
-.session-meta{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.session-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--text3);display:inline-block}
-.session-members{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
-.member-chip{background:var(--s3);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--text2)}
-.member-chip.me{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(245,166,35,.3)}
+.session-card{
+  background:var(--paper);border:none;
+  border-radius:var(--r);padding:18px;cursor:pointer;
+  transition:all .22s cubic-bezier(.34,1.56,.64,1);margin-bottom:12px;
+  position:relative;overflow:hidden;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.session-card:hover{transform:translateY(-2px) rotate(-.4deg);box-shadow:var(--shadow-pop),var(--rim)}
+.session-card:active{transform:translateY(0) scale(.99)}
+.session-card::before{
+  content:'';position:absolute;left:0;top:14px;bottom:14px;width:4px;
+  background:linear-gradient(180deg,var(--purple-2),var(--purple));
+  border-radius:0 4px 4px 0;
+}
+.session-route{
+  font-family:var(--font-display);font-size:24px;font-weight:400;
+  margin-bottom:8px;letter-spacing:-.015em;line-height:1.1;
+  display:flex;align-items:center;gap:8px;color:var(--ink);
+}
+.session-route-arrow{color:var(--purple);font-family:var(--font-ui);font-size:16px;font-weight:400}
+.session-meta{
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-3);
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.session-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--ink-4);display:inline-block}
+.session-members{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+.member-chip{
+  background:var(--cream-2);color:var(--ink-2);
+  border-radius:var(--r-pill);padding:4px 12px;font-size:11px;font-weight:600;
+}
+.member-chip.me{background:linear-gradient(135deg,var(--yellow-2),var(--yellow));color:var(--ink);font-weight:700;box-shadow:0 2px 6px rgba(255,216,94,.4)}
 
-/* ── LOOKUP ── */
-.history-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
-.history-item:last-child{border-bottom:none}
-.history-line{width:2px;background:var(--border);border-radius:2px;flex-shrink:0;margin:4px 0;position:relative}
-.history-line::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--s3);border:2px solid var(--border);position:absolute;left:-3px;top:0}
-.history-item:first-child .history-line::before{background:var(--success);border-color:var(--success)}
+/* ══════════════════════════════════════════
+   SCAN SCREEN — bright playful mode
+   ══════════════════════════════════════════ */
+.screen#s-scanning{background:linear-gradient(180deg,var(--cream) 0%, var(--cream-2) 100%)}
+.scan-header{
+  padding:18px;margin:0 14px;
+  background:var(--paper);border-radius:var(--r);
+  box-shadow:var(--shadow-soft),var(--rim);
+  display:grid;grid-template-columns:1fr auto;gap:14px;
+  position:sticky;top:70px;z-index:5;
+}
+.scan-counters{display:flex;gap:10px}
+.scan-counter-cell{
+  padding:10px 12px;border-radius:var(--r-sm);min-width:70px;
+  background:var(--purple-bg);text-align:center;
+}
+.scan-counter-cell:nth-child(2){background:var(--mint-bg)}
+.scan-counter-cell:nth-child(3){background:var(--coral-bg)}
+.scan-count{
+  font-family:var(--font-display);font-size:34px;font-weight:400;
+  color:var(--purple);line-height:.95;letter-spacing:-.02em;
+}
+.scan-counter-cell:nth-child(2) .scan-count{color:var(--mint-dk)}
+.scan-counter-cell:nth-child(3) .scan-count{color:var(--coral-dk)}
+.scan-count-label{
+  font-family:var(--font-mono);font-size:9px;font-weight:600;
+  color:var(--ink-3);margin-top:4px;
+  text-transform:uppercase;letter-spacing:.1em;
+}
+.scan-meta-right{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:space-between}
+.scan-route{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-align:right;text-transform:uppercase;letter-spacing:.06em}
+.scan-route strong{color:var(--ink);font-weight:700}
+
+.scan-input-area{padding:14px;margin:14px}
+.scan-input-wrap{
+  position:relative;display:flex;align-items:center;gap:12px;
+  background:var(--paper);padding:6px 6px 6px 16px;
+  border-radius:var(--r-pill);
+  box-shadow:var(--shadow-pop),var(--rim);
+}
+.scan-input-field{
+  flex:1;background:transparent;border:none;
+  color:var(--ink);font-family:var(--font-mono);font-size:15px;font-weight:600;
+  padding:12px 6px;outline:none;letter-spacing:.04em;
+}
+.scan-input-field::placeholder{color:var(--ink-4);font-weight:500}
+.scan-pulse{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  background:radial-gradient(circle at 30% 30%,#fff 0%, transparent 45%), linear-gradient(135deg, var(--yellow) 0%, var(--coral) 100%);
+  box-shadow:0 4px 12px rgba(255,154,138,.5), 0 1px 0 rgba(255,255,255,.4) inset;
+  animation:pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.12) rotate(20deg)}
+}
+
+.scan-list{flex:1;overflow-y:auto;padding:0 14px 20px}
+.scan-item{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;margin-bottom:8px;
+  background:var(--paper);border-radius:var(--r-sm);
+  box-shadow:var(--shadow-soft),var(--rim);
+  animation:slideIn .24s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+.scan-item-num{
+  font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--purple);
+  width:28px;text-align:center;flex-shrink:0;
+  background:var(--purple-bg);padding:4px 0;border-radius:var(--r-pill);
+}
+.scan-item-info{flex:1;min-width:0}
+.scan-item-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.scan-item-barcode{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:2px;letter-spacing:.04em}
+.scan-item-meta{font-size:10px;color:var(--ink-3);font-family:var(--font-mono)}
+.scan-item-by{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);flex-shrink:0;text-transform:uppercase;letter-spacing:.06em}
+.scan-item-remove{
+  width:30px;height:30px;border-radius:50%;
+  background:var(--cream-2);border:none;color:var(--ink-3);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  transition:all .15s;font-size:14px;
+}
+.scan-item-remove:hover{background:var(--err);color:#fff;transform:rotate(90deg)}
+.scan-item.error{background:var(--coral-bg)}
+.scan-item.error .scan-item-name{color:var(--err)}
+
+/* ── HISTORY / LOOKUP ── */
+.history-item{display:flex;gap:14px;padding:14px 0}
+.history-line{width:3px;background:var(--cream-3);border-radius:2px;flex-shrink:0;margin:6px 0;position:relative}
+.history-line::before{
+  content:'';width:14px;height:14px;border-radius:50%;
+  background:var(--paper);border:3px solid var(--cream-3);
+  position:absolute;left:-6px;top:0;
+}
+.history-item:first-child .history-line::before{
+  background:radial-gradient(circle at 30% 30%, #fff, transparent 55%), var(--purple);
+  border-color:var(--purple);box-shadow:0 0 0 4px var(--purple-bg);
+}
 .history-info{flex:1;min-width:0}
-.history-route{font-size:14px;font-weight:700;margin-bottom:3px}
-.history-date{font-family:var(--font-mono);font-size:11px;color:var(--text2)}
-.history-who{font-size:12px;color:var(--text2);margin-top:3px}
-.correction-tag{font-size:10px;font-weight:700;color:#a478ff;background:rgba(138,100,255,.12);padding:1px 6px;border-radius:4px;margin-left:6px}
+.history-route{font-family:var(--font-display);font-size:18px;font-weight:400;margin-bottom:3px;letter-spacing:-.015em}
+.history-date{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);letter-spacing:.04em}
+.history-who{font-size:11px;color:var(--ink-3);margin-top:4px}
+.correction-tag{
+  font-family:var(--font-ui);font-size:10px;font-weight:700;color:#fff;
+  background:var(--purple);padding:2px 8px;border-radius:var(--r-pill);
+  margin-left:6px;
+}
 
 /* ── ADMIN ── */
-.location-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)}
-.location-item:last-child{border-bottom:none}
+.location-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;margin-bottom:8px;
+  background:var(--paper);border-radius:var(--r-sm);
+  box-shadow:var(--shadow-soft),var(--rim);
+}
 .location-name{font-size:15px;font-weight:600}
-.location-inactive{color:var(--text3);text-decoration:line-through}
-.loc-actions{display:flex;gap:8px}
-.loc-btn{padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--s3);color:var(--text2);cursor:pointer;transition:all .1s}
-.loc-btn:hover{border-color:var(--accent);color:var(--accent)}
-.loc-btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+.location-inactive{color:var(--ink-4);text-decoration:line-through}
+.loc-actions{display:flex;gap:6px}
+.loc-btn{
+  padding:6px 12px;border-radius:var(--r-pill);
+  font-family:var(--font-ui);font-size:11px;font-weight:700;
+  border:none;background:var(--cream-2);color:var(--ink-2);cursor:pointer;
+  transition:all .15s;
+}
+.loc-btn:hover{background:var(--purple);color:#fff}
+.loc-btn.danger:hover{background:var(--err);color:#fff}
 
-/* ── PIN PAD ── */
-.pin-display{display:flex;justify-content:center;gap:10px;margin:20px 0}
-.pin-dot{width:14px;height:14px;border-radius:50%;background:var(--s3);border:2px solid var(--border);transition:all .15s}
-.pin-dot.filled{background:var(--accent);border-color:var(--accent)}
-.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto}
-.pin-key{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);height:60px;font-size:20px;font-weight:700;cursor:pointer;transition:all .1s;display:flex;align-items:center;justify-content:center}
-.pin-key:active{background:var(--accent);color:#000;border-color:var(--accent);transform:scale(.94)}
+/* ── PIN ── */
+.pin-display{display:flex;justify-content:center;gap:14px;margin:24px 0}
+.pin-dot{
+  width:16px;height:16px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--cream-3);
+  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:var(--rim);
+}
+.pin-dot.filled{
+  background:radial-gradient(circle at 30% 30%, var(--purple-2), var(--purple));
+  border-color:var(--purple);
+  box-shadow:0 4px 10px rgba(123,92,255,.5);transform:scale(1.15);
+}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:300px;margin:0 auto}
+.pin-key{
+  background:var(--paper);border:none;
+  border-radius:20px;aspect-ratio:1.3/1;
+  font-family:var(--font-display);font-size:28px;font-weight:400;
+  cursor:pointer;transition:all .18s cubic-bezier(.34,1.56,.64,1);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink);box-shadow:var(--shadow-soft),var(--rim);
+}
+.pin-key:hover{transform:translateY(-2px);box-shadow:var(--shadow-pop),var(--rim)}
+.pin-key:active{
+  background:linear-gradient(180deg,var(--purple-2),var(--purple));color:#fff;
+  transform:scale(.92);
+}
 
-/* ── ALERT / TOAST ── */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:12px 20px;font-size:14px;font-weight:500;z-index:1000;transition:transform .25s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;max-width:calc(100vw - 40px);text-align:center}
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(100px);
+  background:var(--ink);color:var(--cream);
+  border-radius:var(--r-pill);padding:14px 22px;
+  font-family:var(--font-ui);font-size:13px;font-weight:600;
+  z-index:1000;transition:transform .28s cubic-bezier(.34,1.56,.64,1);
+  white-space:nowrap;max-width:calc(100vw - 40px);text-align:center;
+  box-shadow:var(--shadow-deep);
+}
 .toast.show{transform:translateX(-50%) translateY(0)}
-.toast.success{border-color:var(--success);color:var(--success)}
-.toast.error{border-color:var(--danger);color:var(--danger)}
+.toast.success{background:var(--ok);color:#fff}
+.toast.error{background:var(--err);color:#fff}
 
-/* ── ALERT MODAL ── */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:flex-end;padding:0}
+/* ── MODAL ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(42,34,54,.48);backdrop-filter:blur(6px);
+  z-index:100;align-items:flex-end;padding:0;
+}
 .modal-overlay.show{display:flex}
-.modal-box{background:var(--s1);border:1px solid var(--border);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:480px;margin:0 auto;padding:24px 20px 32px;animation:slideUp .2s ease}
-@keyframes slideUp{from{transform:translateY(20px);opacity:.8}to{transform:none;opacity:1}}
-.modal-title{font-size:17px;font-weight:800;margin-bottom:8px}
-.modal-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:20px}
+.modal-box{
+  background:var(--paper);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  width:100%;max-width:480px;margin:0 auto;
+  padding:28px 22px 34px;
+  animation:slideUp .32s cubic-bezier(.34,1.56,.64,1);position:relative;
+  box-shadow:0 -20px 60px rgba(42,34,54,.25);
+}
+.modal-box::before{
+  content:'';position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:44px;height:5px;background:var(--cream-3);border-radius:3px;
+}
+@keyframes slideUp{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+.modal-title{font-family:var(--font-display);font-size:28px;font-weight:400;margin-bottom:10px;letter-spacing:-.015em;margin-top:16px;line-height:1.1}
+.modal-desc{font-size:14px;color:var(--ink-2);line-height:1.55;margin-bottom:22px}
 .modal-actions{display:flex;gap:10px}
 .modal-actions .btn{flex:1}
 
-/* ── SLACK SUMMARY ── */
-.slack-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:16px;font-family:var(--font-mono);font-size:12px;line-height:1.8;color:var(--text2);white-space:pre-wrap;word-break:break-all;max-height:40vh;overflow-y:auto}
+/* ── SLACK BOX ── */
+.slack-box{
+  background:var(--ink);color:var(--cream);
+  border-radius:var(--r);padding:18px;
+  font-family:var(--font-mono);font-size:11px;line-height:1.8;
+  white-space:pre-wrap;word-break:break-all;
+  max-height:44vh;overflow-y:auto;
+  box-shadow:var(--shadow-soft);
+}
 
 /* ── LOG ── */
-.log-filter-btn{background:var(--s2);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-family:inherit;font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
-.log-filter-btn.active{background:var(--accent);border-color:var(--accent);color:#000}
-.log-date-group{padding:10px 16px 4px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;background:var(--bg);position:sticky;top:0;z-index:2}
-.log-session-card{border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
-.log-session-card:hover{background:var(--s1)}
-.log-session-header{display:flex;align-items:center;gap:10px;padding:13px 16px}
-.log-session-chevron{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0}
+.log-filter-bar{
+  padding:12px 18px;background:transparent;
+  display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+}
+.log-filter-btn{
+  background:var(--paper);border:none;border-radius:var(--r-pill);
+  color:var(--ink-2);font-family:var(--font-ui);font-size:12px;font-weight:700;
+  padding:9px 16px;cursor:pointer;white-space:nowrap;
+  transition:all .18s;flex-shrink:0;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.log-filter-btn:hover{transform:translateY(-1px)}
+.log-filter-btn.active{
+  background:linear-gradient(180deg,var(--purple-2),var(--purple));color:#fff;
+  box-shadow:0 8px 18px -4px rgba(123,92,255,.5),var(--rim);
+}
+.log-date-group{
+  padding:14px 20px 8px;
+  font-family:var(--font-display);font-size:20px;font-weight:400;
+  color:var(--ink);background:transparent;position:sticky;top:0;z-index:2;
+  letter-spacing:-.01em;
+}
+.log-session-card{
+  background:var(--paper);border-radius:var(--r-sm);margin:6px 18px;
+  cursor:pointer;transition:all .18s;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.log-session-card:hover{transform:translateY(-1px);box-shadow:var(--shadow-pop),var(--rim)}
+.log-session-header{display:flex;align-items:center;gap:12px;padding:14px 16px}
+.log-session-chevron{font-size:14px;color:var(--purple);transition:transform .22s;flex-shrink:0;font-weight:700}
 .log-session-chevron.open{transform:rotate(90deg)}
-.log-barcode-list{padding:0 16px 12px;border-top:1px solid var(--border);background:var(--s1);display:none}
+.log-barcode-list{padding:0 16px 14px;background:var(--cream-2);display:none;border-radius:0 0 var(--r-sm) var(--r-sm);margin-top:-4px}
 .log-barcode-list.open{display:block}
-.log-barcode-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.log-barcode-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--cream-3);font-family:var(--font-mono);font-size:11px}
 .log-barcode-row:last-child{border-bottom:none}
 
-.settings-hint{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.6}
-.sql-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--text2);white-space:pre;overflow-x:auto;line-height:1.6;margin-top:8px}
+.settings-hint{font-family:var(--font-ui);font-size:12px;color:var(--ink-3);margin-top:8px;line-height:1.55}
+.sql-box{
+  background:var(--ink);color:var(--cream);
+  border-radius:var(--r-sm);padding:14px;
+  font-family:var(--font-mono);font-size:10px;
+  white-space:pre;overflow-x:auto;line-height:1.7;margin-top:10px;
+}
 
-/* ── EMPTY STATE ── */
-.empty{text-align:center;padding:48px 24px;color:var(--text2)}
-.empty-icon{font-size:40px;margin-bottom:12px;opacity:.4}
-.empty-text{font-size:14px;line-height:1.6}
+/* ── EMPTY ── */
+.empty{
+  text-align:center;padding:56px 24px;color:var(--ink-3);
+  background:var(--paper);border-radius:var(--r);margin:8px 0;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.empty-icon{font-size:48px;margin-bottom:14px;display:block;filter:drop-shadow(0 6px 10px rgba(42,34,54,.15))}
+.empty-text{font-family:var(--font-display);font-size:20px;font-weight:400;line-height:1.35;color:var(--ink-2);letter-spacing:-.01em}
 
 /* ── DIVIDER ── */
-.divider{height:1px;background:var(--border);margin:20px 0}
+.divider{
+  height:2px;background:repeating-linear-gradient(90deg,var(--cream-3) 0 6px, transparent 6px 12px);
+  margin:28px 0;border-radius:1px;
+}
 
 /* ── LOADING ── */
-.loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:24px;color:var(--text2);font-size:14px}
-.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:28px;color:var(--ink-3);font-size:13px;font-weight:600}
+.spinner{width:18px;height:18px;border:2.5px solid var(--cream-3);border-top-color:var(--purple);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── STATS / CALLOUT ── */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.stat-cell{padding:14px 10px;background:var(--paper);border-radius:var(--r-sm);text-align:center;box-shadow:var(--shadow-soft),var(--rim)}
+.stat-cell-val{font-family:var(--font-display);font-size:28px;font-weight:400;color:var(--purple);line-height:1;letter-spacing:-.02em}
+.stat-cell-lbl{font-family:var(--font-mono);font-size:9px;color:var(--ink-3);margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
+
+.callout{
+  padding:14px 16px;border-radius:var(--r-sm);
+  font-size:13px;line-height:1.55;
+  background:var(--yellow-bg);color:var(--ink);
+  display:flex;align-items:flex-start;gap:12px;
+  box-shadow:var(--shadow-soft),var(--rim);
+}
+.callout::before{
+  content:'💡';flex-shrink:0;font-size:20px;line-height:1;
+}
+.callout.warn::before{content:'⚠️'}
+.callout.err{background:var(--coral-bg);color:var(--coral-dk)}
+.callout.err::before{content:'🚨'}
+.callout.ok{background:var(--mint-bg);color:var(--mint-dk)}
+.callout.ok::before{content:'✨'}
+
+.detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+.detail-stats>div{padding:14px 10px;background:var(--paper);border-radius:var(--r-sm);box-shadow:var(--shadow-soft),var(--rim)}
+
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
 
+<!-- ════ reusable 3D icon sprites ════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="gPurple" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B9A4FF"/><stop offset="1" stop-color="#6342E8"/></linearGradient>
+    <linearGradient id="gYellow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFEB9E"/><stop offset="1" stop-color="#F5B01E"/></linearGradient>
+    <linearGradient id="gMint" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B8F2D8"/><stop offset="1" stop-color="#2FB487"/></linearGradient>
+    <linearGradient id="gCoral" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC6B9"/><stop offset="1" stop-color="#E86450"/></linearGradient>
+    <linearGradient id="gSky" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#CFE3FC"/><stop offset="1" stop-color="#3F86D5"/></linearGradient>
+    <linearGradient id="gBoxSide" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD47A"/><stop offset="1" stop-color="#D99222"/></linearGradient>
+    <linearGradient id="gBoxTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFEBB3"/><stop offset="1" stop-color="#F3C66D"/></linearGradient>
+    <linearGradient id="gBoxDark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D99222"/><stop offset="1" stop-color="#A5690F"/></linearGradient>
+    <radialGradient id="gShine" cx=".3" cy=".3" r=".7"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+
+  <!-- 01 · BOX (for scan tile) -->
+  <symbol id="ic-box" viewBox="0 0 100 100">
+    <!-- left face -->
+    <path d="M10 32 L50 52 L50 92 L10 72 Z" fill="url(#gBoxSide)"/>
+    <!-- right face -->
+    <path d="M90 32 L50 52 L50 92 L90 72 Z" fill="url(#gBoxDark)"/>
+    <!-- top face -->
+    <path d="M50 12 L90 32 L50 52 L10 32 Z" fill="url(#gBoxTop)"/>
+    <!-- tape -->
+    <path d="M50 12 L50 52" stroke="#fff" stroke-width="3" opacity=".6"/>
+    <path d="M30 22 L70 22" stroke="#fff" stroke-width="2" opacity=".4"/>
+    <!-- shine -->
+    <ellipse cx="35" cy="30" rx="14" ry="5" fill="url(#gShine)"/>
+  </symbol>
+
+  <!-- 02 · SHIELD CHECK (approve) -->
+  <symbol id="ic-shield" viewBox="0 0 100 100">
+    <path d="M50 8 L18 20 L18 52 C18 72 32 86 50 92 C68 86 82 72 82 52 L82 20 Z" fill="url(#gMint)"/>
+    <path d="M50 8 L18 20 L18 52 C18 60 22 68 28 74 L28 24 L50 15 Z" fill="#fff" opacity=".28"/>
+    <path d="M34 50 L45 60 L66 40" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <ellipse cx="38" cy="28" rx="10" ry="4" fill="#fff" opacity=".5"/>
+  </symbol>
+
+  <!-- 03 · MAGNIFIER (lookup) -->
+  <symbol id="ic-glass" viewBox="0 0 100 100">
+    <circle cx="42" cy="42" r="28" fill="url(#gSky)"/>
+    <circle cx="42" cy="42" r="22" fill="#fff" opacity=".3"/>
+    <circle cx="42" cy="42" r="22" fill="none" stroke="#fff" stroke-width="3" opacity=".6"/>
+    <ellipse cx="32" cy="32" rx="8" ry="4" fill="#fff" opacity=".7"/>
+    <rect x="62" y="62" width="30" height="12" rx="6" transform="rotate(45 62 62)" fill="url(#gBoxSide)"/>
+    <rect x="62" y="62" width="30" height="6" rx="3" transform="rotate(45 62 62)" fill="#fff" opacity=".3"/>
+  </symbol>
+
+  <!-- 04 · CLIPBOARD (log) -->
+  <symbol id="ic-clip" viewBox="0 0 100 100">
+    <rect x="20" y="16" width="60" height="76" rx="8" fill="url(#gCoral)"/>
+    <rect x="20" y="16" width="60" height="76" rx="8" fill="url(#gShine)" opacity=".4"/>
+    <rect x="28" y="10" width="44" height="18" rx="5" fill="#8B3A2C"/>
+    <rect x="28" y="10" width="44" height="6" rx="3" fill="#fff" opacity=".25"/>
+    <rect x="30" y="38" width="40" height="4" rx="2" fill="#fff" opacity=".8"/>
+    <rect x="30" y="50" width="30" height="4" rx="2" fill="#fff" opacity=".6"/>
+    <rect x="30" y="62" width="36" height="4" rx="2" fill="#fff" opacity=".6"/>
+    <rect x="30" y="74" width="22" height="4" rx="2" fill="#fff" opacity=".45"/>
+  </symbol>
+
+  <!-- 05 · GEAR (admin) -->
+  <symbol id="ic-gear" viewBox="0 0 100 100">
+    <g>
+      <path d="M50 8 L58 18 L70 14 L72 28 L84 34 L78 46 L86 56 L74 62 L72 76 L58 72 L50 84 L42 72 L28 76 L26 62 L14 56 L22 46 L16 34 L28 28 L30 14 L42 18 Z" fill="url(#gPurple)"/>
+      <circle cx="50" cy="48" r="18" fill="#fff" opacity=".25"/>
+      <circle cx="50" cy="48" r="14" fill="#fff"/>
+      <circle cx="50" cy="48" r="8" fill="url(#gPurple)"/>
+      <ellipse cx="38" cy="28" rx="10" ry="4" fill="#fff" opacity=".45"/>
+    </g>
+  </symbol>
+</svg>
+
 <!-- ════════════════ HOME ════════════════ -->
 <div class="screen active" id="s-home">
-  <div style="padding:32px 20px 0">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase">마켓인유</div>
-      <div id="home-settings-btn" style="font-size:11px;color:var(--text3);cursor:pointer;padding:4px 0" onclick="showScreen('s-settings')">⚙ 설정</div>
+  <div class="home-hero">
+    <div class="home-mark">
+      <div class="home-mark-logo">
+        <span class="blob"></span>
+        <span>물류이동 app</span>
+      </div>
+      <div class="home-mark-meta" style="font-size:10px">
+        <div id="home-date">—</div>
+        <div id="home-settings-btn" onclick="showScreen('s-settings')">⚙</div>
+      </div>
     </div>
-    <h1 class="page-title">이동관리</h1>
-    <p style="font-size:13px;color:var(--text2);margin-top:4px" id="home-date"></p>
+    <h1 class="home-title" style="font-size:60px;font-family:sans-serif;font-weight:400;margin:0;padding:0;letter-spacing:-1.2px;line-height:1">오늘의<br><em>이동</em>을<br>시작해볼까요?</h1>
+    <div class="home-subtitle">
+      <span class="pill">MARKET IN U</span>
+      <span>INVENTORY OPS</span>
+    </div>
   </div>
-  <div class="content" style="padding-top:8px">
-    <div id="home-config-warning" style="display:none;background:var(--danger-dim);border:1px solid rgba(229,83,83,.3);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--danger)">
-      ⚠ Supabase 또는 Dropbox 설정이 필요해요. 우측 상단 설정을 눌러주세요.
-    </div>
-    <div class="home-grid">
-      <div class="home-tile accent" onclick="startScanFlow()">
-        <div class="home-tile-icon">📦</div>
-        <div>
-          <div class="home-tile-label">바코드 스캔</div>
-          <div class="home-tile-sub">물류팀 담당자</div>
-        </div>
-      </div>
-      <div class="home-tile" onclick="startManagerFlow()">
-        <div class="home-tile-icon">✅</div>
-        <div>
-          <div class="home-tile-label">이동 승인</div>
-          <div class="home-tile-sub">매니저</div>
-        </div>
-      </div>
-      <div class="home-tile" onclick="showScreen('s-lookup')">
-        <div class="home-tile-icon">🔍</div>
-        <div>
-          <div class="home-tile-label">경로 조회</div>
-          <div class="home-tile-sub">바코드로 확인</div>
-        </div>
-      </div>
-      <div class="home-tile" onclick="showScreen('s-log')">
-        <div class="home-tile-icon">📋</div>
-        <div>
-          <div class="home-tile-label">이동 로그</div>
-          <div class="home-tile-sub">날짜별 전체 내역</div>
-        </div>
-      </div>
-      <div class="home-tile" onclick="startAdminFlow()">
-        <div class="home-tile-icon">⚙️</div>
-        <div>
-          <div class="home-tile-label">관리자</div>
-          <div class="home-tile-sub">매장·승인자 관리</div>
-        </div>
-      </div>
-    </div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:28px;margin-bottom:12px">
-      <h2 class="section-title" style="margin:0">오늘 진행 중인 세션</h2>
-      <button onclick="loadHomeSessions(); this.textContent='↻ 완료'; setTimeout(()=>this.textContent='↻ 새로고침', 1000)" style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text2);font-family:inherit;font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;transition:all .15s;active:scale(.95)">↻ 새로고침</button>
+  <div id="home-config-warning" style="display:none;padding:0 20px;margin-top:14px">
+    <div class="callout err">Supabase 또는 Dropbox 설정이 필요해요. 우측 상단 ⚙을 눌러주세요.</div>
+  </div>
+
+  <div class="home-grid">
+    <div class="home-tile accent" onclick="startScanFlow()">
+      <div class="home-tile-icon"><svg><use href="#ic-box"/></svg></div>
+      <div style="flex:1">
+        <div class="home-tile-sub">START · FOR LOGISTICS</div>
+        <div class="home-tile-label">바코드 스캔</div>
+      </div>
+    </div>
+    <div class="home-tile" onclick="startManagerFlow()">
+      <div class="home-tile-icon" style="background:var(--mint-bg)"><svg><use href="#ic-shield"/></svg></div>
+      <div>
+        <div class="home-tile-label">이동 승인</div>
+        <div class="home-tile-sub">매니저</div>
+      </div>
+    </div>
+    <div class="home-tile" onclick="showScreen('s-lookup')">
+      <div class="home-tile-icon" style="background:var(--sky-bg)"><svg><use href="#ic-glass"/></svg></div>
+      <div>
+        <div class="home-tile-label">경로 조회</div>
+        <div class="home-tile-sub">바코드로 확인</div>
+      </div>
+    </div>
+    <div class="home-tile" onclick="showScreen('s-log')">
+      <div class="home-tile-icon" style="background:var(--coral-bg)"><svg><use href="#ic-clip"/></svg></div>
+      <div>
+        <div class="home-tile-label">이동 로그</div>
+        <div class="home-tile-sub">전체 내역</div>
+      </div>
+    </div>
+    <div class="home-tile" onclick="startAdminFlow()">
+      <div class="home-tile-icon" style="background:var(--purple-bg)"><svg><use href="#ic-gear"/></svg></div>
+      <div>
+        <div class="home-tile-label">관리자</div>
+        <div class="home-tile-sub">매장 · 승인자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="home-sessions-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h2 class="section-title" style="margin:0">오늘 진행 중</h2>
+      <button onclick="loadHomeSessions(); this.textContent='↻ 완료'; setTimeout(()=>this.textContent='↻ 새로고침', 1000)" class="loc-btn">↻ 새로고침</button>
     </div>
     <div id="home-sessions"></div>
   </div>
@@ -293,11 +815,11 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 <div class="screen" id="s-settings">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">설정</div></div>
+    <div style="flex:1"><div class="topbar-title">설정</div></div>
     <div class="topbar-action" onclick="saveSettings()">저장</div>
   </div>
   <div class="content">
-    <h2 class="section-title">Supabase 연결</h2>
+    <h2 class="section-title">Supabase</h2>
     <div class="form-group">
       <label class="form-label">Project URL</label>
       <input class="form-input" id="cfg-sb-url" placeholder="https://xxxx.supabase.co" autocomplete="off">
@@ -308,7 +830,7 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     </div>
 
     <div class="divider"></div>
-    <h2 class="section-title" style="margin-top:0">Dropbox 연결</h2>
+    <h2 class="section-title" style="margin-top:0">Dropbox</h2>
     <div class="form-group">
       <label class="form-label">App Key</label>
       <input class="form-input" id="cfg-db-appkey" placeholder="abc123..." autocomplete="off">
@@ -320,9 +842,8 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div class="form-group">
       <label class="form-label">Refresh Token</label>
       <input class="form-input" id="cfg-db-refresh" placeholder="긴 토큰값..." autocomplete="off">
-      <div class="settings-hint">VM 서버의 .env 파일에서 DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN 값을 복사하세요. 한 번 설정하면 만료되지 않아요.</div>
+      <div class="settings-hint">VM 서버 .env의 DROPBOX_APP_KEY · APP_SECRET · REFRESH_TOKEN 을 복사하세요. 한 번 설정 후 만료되지 않아요.</div>
     </div>
-
   </div>
 </div>
 
@@ -330,11 +851,14 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 <div class="screen" id="s-scan-info">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">이동 시작</div><div class="topbar-sub">정보를 입력하세요</div></div>
+    <div style="flex:1"><div class="topbar-title">이동 시작</div></div>
   </div>
   <div class="content">
+    <h1 class="page-title">누가, 어디로 <em>옮기나요?</em></h1>
+    <p class="page-desc">담당자와 출발·도착지를 선택해주세요.</p>
+
     <div class="form-group">
-      <label class="form-label">담당자 이름</label>
+      <label class="form-label">담당자</label>
       <select class="form-input form-select" id="scan-name"></select>
     </div>
     <div class="form-group">
@@ -345,11 +869,12 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <label class="form-label">도착지</label>
       <select class="form-input form-select" id="scan-to"></select>
     </div>
-    <div id="scan-info-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:12px"></div>
+    <div id="scan-info-error" style="display:none;color:var(--err);font-size:13px;margin-bottom:14px;font-weight:600"></div>
     <button class="btn btn-primary" onclick="submitScanInfo()" id="scan-info-next-btn">
-      <span>다음 — 스캔 시작</span>
+      <span>스캔 시작하기</span>
+      <span>→</span>
     </button>
-    <div id="scan-info-loading" class="loading" style="display:none"><div class="spinner"></div>엑셀 파일 불러오는 중...</div>
+    <div id="scan-info-loading" class="loading" style="display:none"><div class="spinner"></div>엑셀 불러오는 중...</div>
   </div>
 </div>
 
@@ -360,14 +885,10 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div><div class="topbar-title">기존 세션 발견</div></div>
   </div>
   <div class="content">
-    <div style="text-align:center;padding:20px 0 24px">
-      <div style="font-size:40px;margin-bottom:16px">📋</div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:8px">오늘 이미 같은 이동 세션이 있어요</div>
-      <div style="font-size:13px;color:var(--text2);line-height:1.6">이 세션에 합류해서 함께 스캔할 수 있어요</div>
-    </div>
+    <div class="callout" style="margin-bottom:20px">오늘 같은 이동 세션이 있어요. 합류해서 함께 스캔할 수 있어요.</div>
     <div class="card" id="existing-session-info" style="margin-bottom:20px"></div>
     <button class="btn btn-primary" onclick="joinExistingSession()">이 세션에 합류하기</button>
-    <button class="btn btn-ghost" style="margin-top:10px" onclick="goBack()">돌아가기</button>
+    <button class="btn btn-ghost" onclick="goBack()">돌아가기</button>
   </div>
 </div>
 
@@ -382,34 +903,34 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <button class="btn btn-primary btn-sm" onclick="submitScan()">제출</button>
   </div>
   <div class="scan-header">
-    <div style="display:flex;gap:16px;align-items:flex-end">
-      <div>
+    <div class="scan-counters">
+      <div class="scan-counter-cell">
         <div class="scan-count" id="scan-count">0</div>
         <div class="scan-count-label">전체</div>
       </div>
-      <div>
-        <div class="scan-count" id="scan-count-mine" style="color:var(--success)">0</div>
+      <div class="scan-counter-cell">
+        <div class="scan-count" id="scan-count-mine">0</div>
         <div class="scan-count-label">내 것</div>
       </div>
-      <div>
-        <div class="scan-count" id="scan-count-hanger" style="color:var(--text2)">0</div>
-        <div class="scan-count-label">현재 행거</div>
+      <div class="scan-counter-cell">
+        <div class="scan-count" id="scan-count-hanger">0</div>
+        <div class="scan-count-label">행거</div>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+    <div class="scan-meta-right">
       <div class="scan-route" id="scan-route-display"></div>
-      <div style="font-size:11px;color:var(--text3)" id="scan-session-members"></div>
-      <button onclick="completeHanger()" style="background:var(--s3);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text2);font-family:inherit;font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;white-space:nowrap">✓ 행거 완료</button>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.06em" id="scan-session-members"></div>
+      <button onclick="completeHanger()" class="loc-btn">✓ 행거 완료</button>
     </div>
   </div>
   <div class="scan-input-area">
     <div class="scan-input-wrap">
-      <div class="scan-pulse"></div>
       <input class="scan-input-field" id="barcode-input" placeholder="바코드를 스캔하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none" lang="en">
+      <div class="scan-pulse"></div>
     </div>
-    <div style="margin-top:8px;display:flex;gap:8px">
-      <input class="scan-input-field" id="manual-barcode-input" placeholder="바코드 직접 입력..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;font-size:13px;padding:9px 12px" inputmode="text">
-      <button onclick="submitManualBarcode()" style="background:var(--s3);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text2);font-family:inherit;font-size:12px;font-weight:700;padding:9px 14px;cursor:pointer;white-space:nowrap;flex-shrink:0">✚ 추가</button>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <input class="scan-input-field" id="manual-barcode-input" placeholder="직접 입력..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;background:var(--paper);border-radius:var(--r-pill);padding:12px 18px;box-shadow:var(--shadow-soft),var(--rim)" inputmode="text">
+      <button onclick="submitManualBarcode()" class="btn btn-primary btn-sm" style="padding:12px 18px">+ 추가</button>
     </div>
   </div>
   <div class="scan-list" id="scan-list"></div>
@@ -421,10 +942,10 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div><div class="topbar-title">매니저 인증</div></div>
   </div>
-  <div class="content" style="text-align:center">
-    <div style="font-size:32px;margin-bottom:16px;margin-top:8px">🔐</div>
-    <div class="form-group" style="text-align:left;max-width:280px;margin:0 auto 20px">
-      <label class="form-label">이름 선택</label>
+  <div class="content" style="text-align:center;padding-top:8px">
+    <div style="width:88px;height:88px;margin:0 auto 14px"><svg width="100%" height="100%"><use href="#ic-shield"/></svg></div>
+    <div class="form-group" style="text-align:left;max-width:300px;margin:0 auto 16px">
+      <label class="form-label">이름</label>
       <select class="form-input form-select" id="mgr-name-select"></select>
     </div>
     <div class="pin-display" id="pin-display">
@@ -443,11 +964,11 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <div class="pin-key" onclick="pinPress('7')">7</div>
       <div class="pin-key" onclick="pinPress('8')">8</div>
       <div class="pin-key" onclick="pinPress('9')">9</div>
-      <div class="pin-key" style="grid-column:1;font-size:14px;color:var(--text2)" onclick="pinClear()">지우기</div>
+      <div class="pin-key" style="font-family:var(--font-ui);font-size:13px;color:var(--ink-3);font-weight:700" onclick="pinClear()">지우기</div>
       <div class="pin-key" onclick="pinPress('0')">0</div>
-      <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="pinBackspace()">⌫</div>
+      <div class="pin-key" style="color:var(--err)" onclick="pinBackspace()">⌫</div>
     </div>
-    <div id="pin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
+    <div id="pin-error" style="color:var(--err);font-size:13px;font-weight:600;margin-top:18px;min-height:20px"></div>
   </div>
 </div>
 
@@ -455,13 +976,13 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 <div class="screen" id="s-admin-auth">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">관리자 인증</div><div class="topbar-sub">승인자 PIN이 필요해요</div></div>
+    <div><div class="topbar-title">관리자 인증</div></div>
   </div>
-  <div class="content" style="text-align:center">
-    <div style="font-size:32px;margin-bottom:16px;margin-top:8px">🛡️</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6">매장 목록, 승인자 관리는<br>승인자 인증 후 이용 가능해요</div>
-    <div class="form-group" style="text-align:left;max-width:280px;margin:0 auto 20px">
-      <label class="form-label">이름 선택</label>
+  <div class="content" style="text-align:center;padding-top:8px">
+    <div style="width:88px;height:88px;margin:0 auto 14px"><svg width="100%" height="100%"><use href="#ic-gear"/></svg></div>
+    <p style="font-size:14px;color:var(--ink-2);margin-bottom:20px;line-height:1.55">매장 · 승인자 관리는<br>승인자 PIN 인증 후 이용 가능해요</p>
+    <div class="form-group" style="text-align:left;max-width:300px;margin:0 auto 16px">
+      <label class="form-label">이름</label>
       <select class="form-input form-select" id="admin-name-select"></select>
     </div>
     <div class="pin-display" id="admin-pin-display">
@@ -480,26 +1001,26 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <div class="pin-key" onclick="adminPinPress('7')">7</div>
       <div class="pin-key" onclick="adminPinPress('8')">8</div>
       <div class="pin-key" onclick="adminPinPress('9')">9</div>
-      <div class="pin-key" style="grid-column:1;font-size:14px;color:var(--text2)" onclick="adminPinClear()">지우기</div>
+      <div class="pin-key" style="font-family:var(--font-ui);font-size:13px;color:var(--ink-3);font-weight:700" onclick="adminPinClear()">지우기</div>
       <div class="pin-key" onclick="adminPinPress('0')">0</div>
-      <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="adminPinBackspace()">⌫</div>
+      <div class="pin-key" style="color:var(--err)" onclick="adminPinBackspace()">⌫</div>
     </div>
-    <div id="admin-pin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
+    <div id="admin-pin-error" style="color:var(--err);font-size:13px;font-weight:600;margin-top:18px;min-height:20px"></div>
   </div>
 </div>
 
-<!-- ════════════════ MANAGER SESSIONS LIST ════════════════ -->
+<!-- ════════════════ MANAGER LIST ════════════════ -->
 <div class="screen" id="s-manager-list">
   <div class="topbar">
     <div class="topbar-back" onclick="showScreen('s-home')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div style="flex:1"><div class="topbar-title">이동 승인</div><div class="topbar-sub" id="mgr-list-sub"></div></div>
-    <div class="topbar-action" onclick="loadManagerSessions()">↻ 새로고침</div>
-    <div class="topbar-action" onclick="generateDailySummary()" style="margin-left:8px">📋 요약</div>
+    <div class="topbar-action" onclick="loadManagerSessions()">↻</div>
+    <div class="topbar-action" onclick="generateDailySummary()" style="margin-left:6px;background:var(--mint)">요약</div>
   </div>
   <div class="content">
-    <h2 class="section-title">대기 중인 세션</h2>
+    <h2 class="section-title">대기 중</h2>
     <div id="mgr-pending-list"></div>
-    <h2 class="section-title">오늘 완료된 세션</h2>
+    <h2 class="section-title">오늘 완료</h2>
     <div id="mgr-approved-list"></div>
   </div>
 </div>
@@ -512,10 +1033,10 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div id="detail-badge-wrap"></div>
   </div>
   <div class="content">
-    <div id="detail-approve-warning" style="display:none;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--accent);line-height:1.6">
-      ⚠ 승인 전, 슬랙 공동판매 채널에 <strong>"사용중"</strong> 메시지를 먼저 남겨주세요.
+    <div id="detail-approve-warning" style="display:none;margin-bottom:18px">
+      <div class="callout warn">승인 전, 슬랙 공동판매 채널에 <strong>"사용중"</strong> 메시지를 먼저 남겨주세요.</div>
     </div>
-    <div id="detail-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px"></div>
+    <div id="detail-stats" class="detail-stats"></div>
     <h2 class="section-title">스캔 목록</h2>
     <div id="detail-items-list"></div>
     <div id="detail-approve-btn-area" style="margin-top:20px;display:none">
@@ -524,22 +1045,20 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       </button>
     </div>
     <div id="detail-delete-btn-area" style="margin-top:10px;display:none">
-      <button class="btn btn-danger" onclick="deleteSession()">
-        🗑 세션 삭제
-      </button>
+      <button class="btn btn-danger" onclick="deleteSession()">🗑 세션 삭제</button>
     </div>
-    <div id="detail-approved-info" style="display:none;background:var(--success-dim);border:1px solid rgba(61,186,111,.3);border-radius:var(--r);padding:14px 16px;font-size:13px;color:var(--success)"></div>
+    <div id="detail-approved-info" style="display:none"></div>
   </div>
 </div>
 
-<!-- ════════════════ APPROVE CONFIRM (PIN) ════════════════ -->
+<!-- ════════════════ APPROVE CONFIRM ════════════════ -->
 <div class="screen" id="s-approve-confirm">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">승인 확인</div><div class="topbar-sub">PIN을 입력하세요</div></div>
+    <div><div class="topbar-title">승인 확인</div></div>
   </div>
   <div class="content" style="text-align:center">
-    <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:24px;text-align:left" id="approve-summary"></div>
+    <div class="card" style="margin-bottom:22px;text-align:left" id="approve-summary"></div>
     <div class="pin-display" id="apin-display">
       <div class="pin-dot" id="apin-d1"></div>
       <div class="pin-dot" id="apin-d2"></div>
@@ -556,11 +1075,11 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
       <div class="pin-key" onclick="apinPress('7')">7</div>
       <div class="pin-key" onclick="apinPress('8')">8</div>
       <div class="pin-key" onclick="apinPress('9')">9</div>
-      <div class="pin-key" style="grid-column:1;font-size:14px;color:var(--text2)" onclick="apinClear()">지우기</div>
+      <div class="pin-key" style="font-family:var(--font-ui);font-size:13px;color:var(--ink-3);font-weight:700" onclick="apinClear()">지우기</div>
       <div class="pin-key" onclick="apinPress('0')">0</div>
-      <div class="pin-key" style="font-size:20px;color:var(--danger)" onclick="apinBackspace()">⌫</div>
+      <div class="pin-key" style="color:var(--err)" onclick="apinBackspace()">⌫</div>
     </div>
-    <div id="apin-error" style="color:var(--danger);font-size:13px;margin-top:16px;min-height:20px"></div>
+    <div id="apin-error" style="color:var(--err);font-size:13px;font-weight:600;margin-top:18px;min-height:20px"></div>
     <div id="apin-loading" class="loading" style="display:none"><div class="spinner"></div>승인 처리 중...</div>
   </div>
 </div>
@@ -569,12 +1088,12 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 <div class="screen" id="s-slack-summary">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">슬랙 요약문</div><div class="topbar-sub">이동보고 채널에 붙여넣기</div></div>
+    <div><div class="topbar-title">슬랙 요약</div></div>
   </div>
   <div class="content">
     <div class="slack-box" id="slack-text"></div>
-    <button class="btn btn-primary" onclick="copySlack()" style="margin-top:16px">📋 복사하기</button>
-    <button class="btn btn-secondary" onclick="goBack()" style="margin-top:10px">돌아가기</button>
+    <button class="btn btn-primary" onclick="copySlack()" style="margin-top:18px">📋 복사하기</button>
+    <button class="btn btn-secondary" onclick="goBack()">돌아가기</button>
   </div>
 </div>
 
@@ -583,24 +1102,21 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
     <div style="flex:1"><div class="topbar-title">이동 로그</div><div class="topbar-sub" id="log-sub"></div></div>
-    <div class="topbar-action" onclick="downloadLogExcel()">⬇ 엑셀</div>
+    <div class="topbar-action" onclick="downloadLogExcel()" style="background:var(--mint)">⬇ 엑셀</div>
   </div>
-
-  <!-- 날짜 필터 -->
-  <div style="padding:12px 16px;background:var(--s1);border-bottom:1px solid var(--border);display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <div class="log-filter-bar">
     <button class="log-filter-btn active" onclick="setLogFilter('today',this)">오늘</button>
     <button class="log-filter-btn" onclick="setLogFilter('week',this)">이번 주</button>
     <button class="log-filter-btn" onclick="setLogFilter('month',this)">이번 달</button>
     <button class="log-filter-btn" onclick="setLogFilter('custom',this)">직접 입력</button>
   </div>
-  <div id="log-custom-range" style="display:none;padding:10px 16px;background:var(--s1);border-bottom:1px solid var(--border);display:none;gap:8px;align-items:center">
+  <div id="log-custom-range" style="display:none;padding:12px 18px;gap:8px;align-items:center">
     <input type="date" class="form-input" id="log-date-from" style="flex:1;font-size:13px;padding:10px 12px">
-    <span style="color:var(--text2);font-size:13px">~</span>
+    <span style="color:var(--ink-3);font-size:13px">~</span>
     <input type="date" class="form-input" id="log-date-to" style="flex:1;font-size:13px;padding:10px 12px">
-    <button class="btn btn-primary btn-sm" onclick="loadLog()" style="width:52px;flex-shrink:0">조회</button>
+    <button class="btn btn-primary btn-sm" onclick="loadLog()" style="width:60px;flex-shrink:0">조회</button>
   </div>
-
-  <div class="content" style="padding:0">
+  <div class="content" style="padding:0 0 120px">
     <div id="log-list"></div>
   </div>
 </div>
@@ -609,14 +1125,16 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 <div class="screen" id="s-lookup">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">이동 경로 조회</div></div>
+    <div><div class="topbar-title">경로 조회</div></div>
   </div>
   <div class="content">
+    <h1 class="page-title">어디 <em>있었죠?</em></h1>
+    <p class="page-desc">바코드로 이 상품의 이동 이력을 확인해요.</p>
     <div class="form-group">
-      <label class="form-label">바코드 입력</label>
+      <label class="form-label">바코드</label>
       <div style="display:flex;gap:8px">
-        <input class="form-input" id="lookup-input" placeholder="바코드를 스캔하거나 입력하세요" style="flex:1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <button class="btn btn-primary btn-sm" onclick="doLookup()" style="width:60px">조회</button>
+        <input class="form-input" id="lookup-input" placeholder="스캔 또는 입력..." style="flex:1;font-family:var(--font-mono)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <button class="btn btn-primary btn-sm" onclick="doLookup()" style="width:72px">조회</button>
       </div>
     </div>
     <div id="lookup-result"></div>
@@ -630,14 +1148,15 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div><div class="topbar-title">관리자</div></div>
   </div>
   <div class="content">
-    <h2 class="section-title">매장 / 창고 목록</h2>
-    <div id="admin-need-auth" style="display:none;background:var(--danger-dim);border:1px solid rgba(229,83,83,.25);border-radius:var(--r);padding:14px 16px;font-size:13px;color:var(--danger);margin-bottom:12px">
-      변경은 매니저 인증 후 가능해요.
+    <div id="admin-need-auth" style="display:none;margin-bottom:14px">
+      <div class="callout err">변경은 매니저 인증 후 가능해요.</div>
     </div>
+
+    <h2 class="section-title">매장 / 창고</h2>
     <div id="location-list"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <input class="form-input" id="new-location-input" placeholder="새 매장 이름" style="flex:1">
-      <button class="btn btn-primary btn-sm" onclick="addLocation()" style="width:60px">추가</button>
+      <button class="btn btn-primary btn-sm" onclick="addLocation()" style="width:72px">추가</button>
     </div>
 
     <div class="divider"></div>
@@ -646,12 +1165,12 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
     <div id="handler-list"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <input class="form-input" id="new-handler-input" placeholder="담당자 이름" style="flex:1">
-      <button class="btn btn-primary btn-sm" onclick="addHandler()" style="width:60px">추가</button>
+      <button class="btn btn-primary btn-sm" onclick="addHandler()" style="width:72px">추가</button>
     </div>
 
     <div class="divider"></div>
 
-    <h2 class="section-title" style="margin-top:0">승인자 관리</h2>
+    <h2 class="section-title" style="margin-top:0">승인자</h2>
     <div id="approver-list"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:12px;align-items:end">
       <div>
@@ -659,7 +1178,7 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
         <input class="form-input" id="new-approver-name" placeholder="이름">
       </div>
       <div>
-        <label class="form-label">PIN (4자리)</label>
+        <label class="form-label">PIN</label>
         <input class="form-input" id="new-approver-pin" placeholder="0000" maxlength="4" type="password" style="font-family:var(--font-mono)">
       </div>
       <button class="btn btn-primary btn-sm" onclick="addApprover()">추가</button>
@@ -667,31 +1186,31 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
 
     <div class="divider"></div>
 
-    <h2 class="section-title" style="margin-top:0">엑셀 컬럼 설정</h2>
-    <div class="settings-hint" style="margin-bottom:12px">공동판매 파일의 열 위치가 변경됐을 때만 수정하세요.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <h2 class="section-title" style="margin-top:0">엑셀 컬럼</h2>
+    <div class="settings-hint" style="margin-bottom:12px">공동판매 파일 열이 변경됐을 때만 수정하세요.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">바코드 열</label>
+        <label class="form-label">바코드</label>
         <input class="form-input" id="cfg-col-barcode" placeholder="G" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">위치 열</label>
+        <label class="form-label">위치</label>
         <input class="form-input" id="cfg-col-location" placeholder="B" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">수정일 열</label>
+        <label class="form-label">수정일</label>
         <input class="form-input" id="cfg-col-date" placeholder="O" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">상품명 열</label>
+        <label class="form-label">상품명</label>
         <input class="form-input" id="cfg-col-name" placeholder="D" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">카테고리 열</label>
+        <label class="form-label">카테고리</label>
         <input class="form-input" id="cfg-col-cat" placeholder="H" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
       </div>
       <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">가격 열</label>
+        <label class="form-label">가격</label>
         <input class="form-input" id="cfg-col-price" placeholder="E" maxlength="3" style="text-align:center;font-family:var(--font-mono)">
       </div>
     </div>
@@ -699,7 +1218,6 @@ p.page-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px
   </div>
 </div>
 
-<!-- ════════════════ CORRECTION ════════════════ -->
 <!-- ════════════════ MODAL ════════════════ -->
 <div class="modal-overlay" id="modal">
   <div class="modal-box">
