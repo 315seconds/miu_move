@@ -2385,10 +2385,21 @@ function startApprove() {
     .eq('is_error', false)
     .then(({ count }) => {
       document.getElementById('approve-summary').innerHTML = `
-        <div style="font-size:13px;color:var(--text2);margin-bottom:6px">승인 내용</div>
-        <div style="font-weight:700;font-size:15px">${app.selectedSession.from_location} → ${app.selectedSession.to_location}</div>
-        <div style="font-size:14px;color:var(--success);margin-top:6px;font-weight:600">제출완료 ${count||0}벌 엑셀 업데이트</div>
-        <div style="font-size:13px;color:var(--text2);margin-top:4px">승인자: ${app.mgrApprover.name}</div>
+        <div class="card-header" style="gap:10px">
+          <div style="width:38px;height:38px;border-radius:10px;background:var(--purple-bg);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">이동 경로</div>
+            <div style="font-size:16px;font-weight:800;color:var(--ink)">${app.selectedSession.from_location} <span style="color:var(--purple)">→</span> ${app.selectedSession.to_location}</div>
+          </div>
+        </div>
+        <div class="card-row">
+          <span class="card-row-label">제출 완료</span>
+          <span class="card-row-value" style="color:var(--ok);font-size:18px;font-weight:800">${count||0}벌</span>
+        </div>
+        <div class="card-row">
+          <span class="card-row-label">승인자</span>
+          <span class="card-row-value">${app.mgrApprover.name}</span>
+        </div>
       `;
     });
   showScreen('s-approve-confirm');
