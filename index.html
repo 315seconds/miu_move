@@ -1895,7 +1895,11 @@ async function bulkConfirm() {
       is_error:         false,
     }));
 
-    await app.supabase.from('session_items').insert(items);
+    // 500개씩 나눠서 insert (Supabase 1000개 제한 방지)
+    const chunkSize = 500;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      await app.supabase.from('session_items').insert(items.slice(i, i + chunkSize));
+    }
 
     // 오류 바코드도 기록
     if (bulkState.errorItems.length > 0) {
@@ -1907,7 +1911,9 @@ async function bulkConfirm() {
         is_error:     true,
         error_msg:    '공동판매 파일에 없는 바코드',
       }));
-      await app.supabase.from('session_items').insert(errItems);
+      for (let i = 0; i < errItems.length; i += chunkSize) {
+        await app.supabase.from('session_items').insert(errItems.slice(i, i + chunkSize));
+      }
     }
 
     showToast(`${bulkState.validItems.length}벌 제출 완료! 매니저 승인을 요청하세요.`, 'success');
@@ -2768,7 +2774,8 @@ async function generateDailySummary() {
       .select('*')
       .in('session_id', ids)
       .eq('is_submitted', true)
-      .eq('is_error', false);
+      .eq('is_error', false)
+      .limit(10000);
 
     const itemMap = {};
     (allItems || []).forEach(i => {
@@ -3010,7 +3017,7 @@ async function downloadLogExcel() {
     // 아이템 데이터
     const ids = sessions.map(s => s.id);
     const { data: items } = await app.supabase
-      .from('session_items').select('*').in('session_id', ids);
+      .from('session_items').select('*').in('session_id', ids).limit(10000);
 
     const sessionMap = {};
     sessions.forEach(s => { sessionMap[s.id] = s; });
