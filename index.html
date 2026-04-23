@@ -1668,13 +1668,13 @@ async function loadHomeSessions() {
     // 오늘 날짜가 아닌 pending 세션 자동 만료 처리
     const { data: oldPending } = await app.supabase
       .from('move_sessions')
-      .select('id, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
+      .select('id, session_items(count, is_submitted, is_error)')
       .eq('status', 'pending')
       .neq('session_date', today);
 
     if (oldPending && oldPending.length > 0) {
       for (const s of oldPending) {
-        const count = s.session_items?.[0]?.count ?? 0;
+        const count = (s.session_items||[]).filter(i=>i.is_submitted&&!i.is_error).length;
         if (count === 0) {
           // 빈 세션 → 삭제
           await app.supabase.from('session_items').delete().eq('session_id', s.id);
@@ -1688,9 +1688,9 @@ async function loadHomeSessions() {
 
     // 대기중: 오늘 것만 / 완료: 오늘 것만
     const [pendingRes, approvedRes] = await Promise.all([
-      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
+      app.supabase.from('move_sessions').select('*, session_items(count, is_submitted, is_error)')
         .eq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
-      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
+      app.supabase.from('move_sessions').select('*, session_items(count, is_submitted, is_error)')
         .neq('status', 'pending').neq('status', 'expired').eq('session_date', today).order('created_at', { ascending: false }),
     ]);
     const all = [...(pendingRes.data || []), ...(approvedRes.data || [])];
@@ -1705,7 +1705,7 @@ async function loadHomeSessions() {
       <span class="badge badge-${{pending:'pending',approved:'approved',correction:'correction'}[s.status]||'pending'} badge-dot">${{pending:'대기중',approved:'완료',correction:'정정완료'}[s.status]||s.status}</span>
     </div>
     <div class="session-meta">
-      <span style="font-family:var(--font-mono);font-size:11px">${s.session_items?.[0]?.count??'?'}벌</span>
+      <span style="font-family:var(--font-mono);font-size:11px">${(s.session_items||[]).filter(i=>i.is_submitted&&!i.is_error).length}벌</span>
       <span class="session-meta-dot"></span>
       <span>${formatDate(s.session_date)} ${formatTime(s.created_at)}</span>
       <span class="session-meta-dot"></span>
@@ -1718,7 +1718,7 @@ async function loadHomeSessions() {
 function sessionCardHTML(s, clickable = true) {
   const badgeMap = { pending: 'pending', approved: 'approved', correction: 'correction' };
   const badgeLbl = { pending: '대기중', approved: '완료', correction: '정정완료' };
-  const count = s.session_items?.[0]?.count ?? '?';
+  const count = (s.session_items||[]).filter(i=>i.is_submitted&&!i.is_error).length;
   return `<div class="session-card" ${clickable ? `onclick="viewSession('${s.id}')"` : ''}>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div class="session-route">${s.from_location} <span class="session-route-arrow">→</span> ${s.to_location}</div>
@@ -1990,7 +1990,7 @@ async function submitScanInfo() {
   try {
     const { data } = await app.supabase
       .from('move_sessions')
-      .select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
+      .select('*, session_items(count, is_submitted, is_error)')
       .eq('session_date', today)
       .eq('from_location', from)
       .eq('to_location', to)
@@ -1999,7 +1999,7 @@ async function submitScanInfo() {
 
     if (data) {
       // Show join confirm
-      const count = data.session_items?.[0]?.count ?? 0;
+      const count = (data.session_items||[]).filter(i=>i.is_submitted&&!i.is_error).length;
       document.getElementById('existing-session-info').innerHTML = `
         <div class="card-row"><span class="card-row-label">루트</span><span class="card-row-value">${data.from_location} → ${data.to_location}</span></div>
         <div class="card-row"><span class="card-row-label">생성자</span><span class="card-row-value">${data.created_by}</span></div>
@@ -2511,9 +2511,9 @@ async function loadManagerSessions() {
   try {
     // 대기중: 날짜 무관 / 완료: 오늘 것만
     const [pendingRes, approvedRes] = await Promise.all([
-      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
+      app.supabase.from('move_sessions').select('*, session_items(count, is_submitted, is_error)')
         .eq('status', 'pending').order('created_at', { ascending: false }),
-      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
+      app.supabase.from('move_sessions').select('*, session_items(count, is_submitted, is_error)')
         .neq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
     ]);
     const pending  = pendingRes.data  || [];
@@ -2529,7 +2529,7 @@ async function loadManagerSessions() {
 async function viewSession(sessionId) {
   try {
     const { data: session } = await app.supabase.from('move_sessions').select('*').eq('id', sessionId).single();
-    const { data: items   } = await app.supabase.from('session_items').select('*').eq('session_id', sessionId).order('scanned_at', { ascending: true });
+    const { data: items   } = await app.supabase.from('session_items').select('*').eq('session_id', sessionId).order('scanned_at', { ascending: true }).limit(5000);
     app.selectedSession = session;
     renderSessionDetail(session, items || []);
     showScreen('s-session-detail');
@@ -2949,7 +2949,8 @@ async function toggleLogSession(sessionId) {
     const { data: items } = await app.supabase
       .from('session_items').select('*')
       .eq('session_id', sessionId)
-      .order('scanned_at', { ascending: true });
+      .order('scanned_at', { ascending: true })
+      .limit(5000);
     logState.itemCache[sessionId] = items || [];
     renderLogItems(sessionId, items || []);
   } catch(e) {
