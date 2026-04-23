@@ -1089,7 +1089,10 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
     <div class="topbar-action" onclick="generateDailySummary()" style="margin-left:6px;background:var(--mint)">요약</div>
   </div>
   <div class="content">
-    <h2 class="section-title">대기 중</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h2 class="section-title" style="margin:0">대기 중</h2>
+      <button onclick="bulkApproveAll()" style="background:var(--ok);color:#fff;border:none;border-radius:var(--r-sm);font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer">✅ 전체 일괄 승인</button>
+    </div>
     <div id="mgr-pending-list"></div>
     <h2 class="section-title">오늘 완료</h2>
     <div id="mgr-approved-list"></div>
@@ -2510,6 +2513,94 @@ function shakePinDots(prefix) {
   el.style.animation = 'shake .4s ease';
 }
 
+async function bulkApproveAll() {
+  if (!app.supabase || !app.mgrApprover) { showToast('매니저 인증이 필요해요', 'error'); return; }
+
+  // 대기중 세션 전체 조회
+  const { data: pending } = await app.supabase
+    .from('move_sessions')
+    .select('id, session_items(is_submitted, is_error)')
+    .eq('status', 'pending');
+
+  if (!pending || pending.length === 0) { showToast('대기 중인 세션이 없어요', 'error'); return; }
+
+  // 모든 담당자가 제출 완료한 세션만 (진행중 항목이 하나도 없는 것)
+  const targets = pending.filter(s => {
+    const items = s.session_items || [];
+    if (items.length === 0) return false;
+    const hasInProgress = items.some(i => !i.is_submitted && !i.is_error);
+    const hasSubmitted  = items.some(i => i.is_submitted && !i.is_error);
+    return hasSubmitted && !hasInProgress;
+  });
+
+  if (targets.length === 0) {
+    showToast('전체 제출 완료된 세션이 없어요', 'error');
+    return;
+  }
+
+  const skipped = pending.length - targets.length;
+  const msg = skipped > 0
+    ? `${targets.length}건 승인 (진행 중 ${skipped}건 제외)\nPIN을 입력하세요:`
+    : `${targets.length}건을 일괄 승인합니다.\nPIN을 입력하세요:`;
+
+  const pin = prompt(msg);
+  if (pin !== app.mgrApprover.pin) { showToast('PIN이 틀렸어요', 'error'); return; }
+
+  showToast(`${targets.length}건 승인 중...`, '');
+
+  try {
+    const now = new Date().toISOString();
+    for (const s of targets) {
+      await app.supabase.from('move_sessions').update({
+        status:        'approved',
+        approved_by:   app.mgrApprover.name,
+        approved_at:   now,
+        excel_updated: false,
+      }).eq('id', s.id);
+    }
+    showToast(`✅ ${targets.length}건 일괄 승인 완료!${skipped > 0 ? ` (진행 중 ${skipped}건 제외)` : ''}`, 'success');
+    loadManagerSessions();
+  } catch(e) {
+    showToast('오류: ' + e.message, 'error');
+  }
+}
+
+async function downloadSessionExcel(sessionId) {
+  if (!app.supabase) return;
+  showToast('엑셀 생성 중...', '');
+  try {
+    const { data: session } = await app.supabase
+      .from('move_sessions').select('*').eq('id', sessionId).single();
+    const { data: items } = await app.supabase
+      .from('session_items').select('*').eq('session_id', sessionId).limit(5000);
+
+    const wb = XLSX.utils.book_new();
+
+    // 제출완료 시트
+    const submitted = (items||[]).filter(i => i.is_submitted && !i.is_error);
+    const rows = [['바코드','상품명','카테고리','금액','스캔담당','스캔시간']];
+    submitted.forEach(i => rows.push([
+      i.barcode, i.product_name||'', i.category||'', i.price||'',
+      i.scanned_by, i.scanned_at ? new Date(i.scanned_at).toLocaleString('ko-KR') : ''
+    ]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '제출완료');
+
+    // 오류 시트
+    const errors = (items||[]).filter(i => i.is_error);
+    if (errors.length > 0) {
+      const errRows = [['바코드','오류내용']];
+      errors.forEach(i => errRows.push([i.barcode, i.error_msg||'']));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(errRows), '오류');
+    }
+
+    const date = session.session_date.replace(/-/g, '.');
+    const fname = `${date}_${session.from_location}→${session.to_location}_${submitted.length}벌.xlsx`;
+    XLSX.writeFile(wb, fname);
+  } catch(e) {
+    showToast('오류: ' + e.message, 'error');
+  }
+}
+
 async function loadManagerSessions() {
   if (!app.supabase) return;
   const today = toDateStr(new Date());
@@ -2920,6 +3011,7 @@ async function loadLog() {
               </div>
             </div>
             <span class="badge badge-${badgeCls[s.status]||'pending'} badge-dot" style="flex-shrink:0">${badgeLbl[s.status]||s.status}</span>
+            <button onclick="event.stopPropagation(); downloadSessionExcel('${s.id}')" style="background:var(--mint-bg);border:1px solid var(--mint-dk);border-radius:6px;color:var(--mint-dk);font-family:inherit;font-size:11px;font-weight:700;padding:4px 8px;cursor:pointer;flex-shrink:0">⬇</button>
           </div>
           <div class="log-barcode-list" id="lbl-${s.id}">
             <div class="loading" style="padding:16px 0"><div class="spinner"></div><span style="margin-left:8px;font-size:13px">불러오는 중...</span></div>
