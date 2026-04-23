@@ -1668,7 +1668,7 @@ async function loadHomeSessions() {
     // 오늘 날짜가 아닌 pending 세션 자동 만료 처리
     const { data: oldPending } = await app.supabase
       .from('move_sessions')
-      .select('id, session_items(count)')
+      .select('id, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
       .eq('status', 'pending')
       .neq('session_date', today);
 
@@ -1688,9 +1688,9 @@ async function loadHomeSessions() {
 
     // 대기중: 오늘 것만 / 완료: 오늘 것만
     const [pendingRes, approvedRes] = await Promise.all([
-      app.supabase.from('move_sessions').select('*, session_items(count)')
+      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
         .eq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
-      app.supabase.from('move_sessions').select('*, session_items(count)')
+      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
         .neq('status', 'pending').neq('status', 'expired').eq('session_date', today).order('created_at', { ascending: false }),
     ]);
     const all = [...(pendingRes.data || []), ...(approvedRes.data || [])];
@@ -1990,7 +1990,7 @@ async function submitScanInfo() {
   try {
     const { data } = await app.supabase
       .from('move_sessions')
-      .select('*, session_items(count)')
+      .select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
       .eq('session_date', today)
       .eq('from_location', from)
       .eq('to_location', to)
@@ -2511,9 +2511,9 @@ async function loadManagerSessions() {
   try {
     // 대기중: 날짜 무관 / 완료: 오늘 것만
     const [pendingRes, approvedRes] = await Promise.all([
-      app.supabase.from('move_sessions').select('*, session_items(count)')
+      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
         .eq('status', 'pending').order('created_at', { ascending: false }),
-      app.supabase.from('move_sessions').select('*, session_items(count)')
+      app.supabase.from('move_sessions').select('*, session_items(count)').eq('session_items.is_submitted', true).eq('session_items.is_error', false)
         .neq('status', 'pending').eq('session_date', today).order('created_at', { ascending: false }),
     ]);
     const pending  = pendingRes.data  || [];
