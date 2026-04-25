@@ -991,7 +991,11 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
     <div class="scan-meta-right">
       <div class="scan-route" id="scan-route-display"></div>
       <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.06em" id="scan-session-members"></div>
-      <button onclick="completeHanger()" class="loc-btn">✓ 행거 완료</button>
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <button onclick="setScanFilter('all')" id="filter-btn-all" class="loc-btn" style="font-size:10px;padding:4px 10px;background:var(--purple);color:#fff">전체</button>
+        <button onclick="setScanFilter('mine')" id="filter-btn-mine" class="loc-btn" style="font-size:10px;padding:4px 10px">내 것만</button>
+      </div>
+      <button onclick="completeHanger()" class="loc-btn" style="margin-top:4px">✓ 행거 완료</button>
     </div>
   </div>
   <div class="scan-input-area">
@@ -2045,6 +2049,7 @@ async function createNewSession() {
 async function enterScanningScreen() {
   app.scannedItems = [];
   app.hangerCount = 0;
+  app.scanFilter = 'all';
   document.getElementById('scan-list').innerHTML = '';
   document.getElementById('scan-count').textContent = '0';
   document.getElementById('scanning-title').textContent = `${app.scanFrom} → ${app.scanTo}`;
@@ -2133,13 +2138,30 @@ function normalizeBarcode(input) {
   return result.toUpperCase().trim();
 }
 
+function setScanFilter(filter) {
+  app.scanFilter = filter;
+  document.getElementById('filter-btn-all').style.background  = filter === 'all'  ? 'var(--purple)' : '';
+  document.getElementById('filter-btn-all').style.color       = filter === 'all'  ? '#fff' : '';
+  document.getElementById('filter-btn-mine').style.background = filter === 'mine' ? 'var(--purple)' : '';
+  document.getElementById('filter-btn-mine').style.color      = filter === 'mine' ? '#fff' : '';
+
+  // 리스트 항목 표시/숨김
+  const list = document.getElementById('scan-list');
+  Array.from(list.children).forEach(el => {
+    const ismine = el.dataset.scannedBy === app.scanUser;
+    el.style.display = (filter === 'mine' && !ismine) ? 'none' : '';
+  });
+}
+
 async function processBarcode(input) {
   // inputmode=none + keyup으로 대부분 차단되지만 혹시 한글이 뚫리면 fallback 변환
   const barcode = normalizeBarcode(input);
   if (!barcode) return;
 
-  // 중복 체크 (대소문자 무시)
-  if (app.scannedItems.find(i => i.barcode.toUpperCase() === barcode)) {
+  // 세션 전체 기준 중복 체크 (내가 찍은 것 + 다른 사람이 찍은 것 모두)
+  const allItems = Array.from(document.getElementById('scan-list').children);
+  const isDup = allItems.some(el => el.dataset.barcode?.toUpperCase() === barcode.toUpperCase());
+  if (isDup) {
     showToast(`이미 스캔된 바코드예요: ${barcode}`, 'error');
     return;
   }
@@ -2198,6 +2220,14 @@ function addItemToUI(item, prepend = true) {
   const div = document.createElement('div');
   div.className = `scan-item${item.is_error ? ' error' : ''}`;
   div.id = `item-${item.id}`;
+  div.dataset.barcode    = item.barcode;
+  div.dataset.scannedBy  = item.scanned_by;
+
+  // 필터 적용
+  if (app.scanFilter === 'mine' && item.scanned_by !== app.scanUser) {
+    div.style.display = 'none';
+  }
+
   div.innerHTML = `
     <div class="scan-item-num">${prepend ? '' : count}</div>
     <div class="scan-item-info">
