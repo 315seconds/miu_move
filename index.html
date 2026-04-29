@@ -3217,7 +3217,37 @@ async function doLookup() {
       .order('scanned_at', { ascending: false });
 
     if (!data || data.length === 0) {
-      el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">이동 기록이 없어요<br>${barcode}</div></div>`;
+      // 이동 기록 없어도 판매 여부 확인
+      let noHistorySold = false;
+      let noHistorySoldInfo = null;
+      try {
+        const { data: soldData } = await app.supabase
+          .from('sold_items')
+          .select('sold_date, store, price, product_name')
+          .ilike('barcode', barcode)
+          .order('sold_date', { ascending: false })
+          .limit(1);
+        if (soldData && soldData.length > 0) {
+          noHistorySold = true;
+          noHistorySoldInfo = soldData[0];
+        }
+      } catch(e) {}
+
+      if (noHistorySold) {
+        el.innerHTML = `
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-row"><span class="card-row-label">바코드</span><span class="card-row-value" style="font-family:var(--font-mono)">${barcode}</span></div>
+            <div class="card-row"><span class="card-row-label">상품명</span><span class="card-row-value">${noHistorySoldInfo?.product_name || '-'}</span></div>
+            <div class="card-row"><span class="card-row-label">현재 위치</span><span class="card-row-value" style="color:var(--ok)">판매됨</span></div>
+            <div class="card-row"><span class="card-row-label">판매 상태</span><span class="card-row-value" style="color:var(--ok);font-weight:800">✅ 판매 완료</span></div>
+            <div class="card-row"><span class="card-row-label">판매일</span><span class="card-row-value">${noHistorySoldInfo?.sold_date || '-'}</span></div>
+            <div class="card-row"><span class="card-row-label">판매 매장</span><span class="card-row-value">${noHistorySoldInfo?.store || '-'}</span></div>
+          </div>
+          <div class="empty" style="margin-top:16px"><div class="empty-icon">📦</div><div class="empty-text">이동 기록 없음<br>앱 도입 이전 판매된 물건이에요</div></div>
+        `;
+      } else {
+        el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">이동 기록이 없어요<br>${barcode}</div></div>`;
+      }
       return;
     }
 
