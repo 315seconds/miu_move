@@ -3213,7 +3213,7 @@ async function doLookup() {
     const { data } = await app.supabase
       .from('session_items')
       .select('*, move_sessions(*)')
-      .ilike('barcode', barcode)   // 대소문자 무시 검색
+      .ilike('barcode', barcode)
       .order('scanned_at', { ascending: false });
 
     if (!data || data.length === 0) {
@@ -3225,11 +3225,34 @@ async function doLookup() {
     const lastItem = sorted[sorted.length-1];
     const currentLoc = lastItem.move_sessions?.to_location || '?';
 
+    // 판매 여부 확인 (Supabase sold_items 테이블)
+    let isSold = false;
+    let soldInfo = null;
+    try {
+      const { data: soldData } = await app.supabase
+        .from('sold_items')
+        .select('sold_date, store, price')
+        .ilike('barcode', barcode)
+        .order('sold_date', { ascending: false })
+        .limit(1);
+      if (soldData && soldData.length > 0) {
+        isSold = true;
+        soldInfo = soldData[0];
+      }
+    } catch(e) { /* sold_items 테이블 없으면 무시 */ }
+
+    const soldBadge = isSold
+      ? `<div class="card-row"><span class="card-row-label">판매 상태</span><span class="card-row-value" style="color:var(--ok);font-weight:800">✅ 판매 완료</span></div>
+         <div class="card-row"><span class="card-row-label">판매일</span><span class="card-row-value">${soldInfo?.sold_date || '-'}</span></div>
+         <div class="card-row"><span class="card-row-label">판매 매장</span><span class="card-row-value">${soldInfo?.store || '-'}</span></div>`
+      : `<div class="card-row"><span class="card-row-label">판매 상태</span><span class="card-row-value" style="color:var(--ink-3)">재고 중</span></div>`;
+
     el.innerHTML = `
       <div class="card" style="margin-bottom:16px">
         <div class="card-row"><span class="card-row-label">바코드</span><span class="card-row-value" style="font-family:var(--font-mono)">${barcode}</span></div>
         <div class="card-row"><span class="card-row-label">상품명</span><span class="card-row-value">${lastItem.product_name || '-'}</span></div>
-        <div class="card-row"><span class="card-row-label">현재 위치</span><span class="card-row-value" style="color:var(--accent)">${currentLoc}</span></div>
+        <div class="card-row"><span class="card-row-label">현재 위치</span><span class="card-row-value" style="color:${isSold ? 'var(--ok)' : 'var(--purple)'}">${isSold ? '판매됨' : currentLoc}</span></div>
+        ${soldBadge}
         <div class="card-row"><span class="card-row-label">이동 횟수</span><span class="card-row-value" style="font-family:var(--font-mono)">${sorted.length}회</span></div>
       </div>
       <h2 class="section-title">이동 경로</h2>
@@ -3246,6 +3269,13 @@ async function doLookup() {
             </div>
           </div>`;
         }).join('')}
+        ${isSold ? `<div class="history-item">
+          <div class="history-line"></div>
+          <div class="history-info">
+            <div class="history-route" style="color:var(--ok);font-weight:700">🛍 판매 완료</div>
+            <div class="history-date">${soldInfo?.sold_date || ''} · ${soldInfo?.store || ''}</div>
+          </div>
+        </div>` : ''}
       </div></div>
     `;
   } catch(e) { el.innerHTML = `<div style="color:var(--danger);padding:16px;font-size:14px">오류: ${e.message}</div>`; }
