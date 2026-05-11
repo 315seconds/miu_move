@@ -604,20 +604,39 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
 .log-day-summary{
   margin:4px 18px 10px;
   background:linear-gradient(135deg,var(--mint-bg),var(--sky-bg));
-  border-radius:var(--r-sm);padding:12px 16px;
+  border-radius:var(--r-sm);padding:14px 16px;
   border-left:3px solid var(--mint-dk);
 }
 .log-day-summary-total{
   font-family:var(--font-ui);font-size:13px;font-weight:700;
-  color:var(--mint-dk);margin-bottom:5px;
+  color:var(--mint-dk);margin-bottom:10px;
 }
-.log-day-summary-routes{
-  font-family:var(--font-mono);font-size:11px;color:var(--ink-2);
-  line-height:1.8;
+.log-sum-route{
+  margin-bottom:8px;
 }
-.log-day-summary-cats{
+.log-sum-route-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:4px;
+}
+.log-sum-route-label{
+  font-family:var(--font-ui);font-size:12px;font-weight:700;color:var(--ink-2);
+}
+.log-sum-route-count{
+  font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--mint-dk);
+}
+.log-sum-cat-row{
+  display:flex;flex-wrap:wrap;gap:5px;
+}
+.log-sum-cat{
   font-family:var(--font-mono);font-size:11px;color:var(--ink-3);
-  margin-top:5px;border-top:1px dashed var(--mint-dk);padding-top:5px;
+  background:rgba(255,255,255,.65);border-radius:var(--r-pill);
+  padding:2px 8px;white-space:nowrap;
+}
+.log-sum-cat b{
+  color:var(--ink);font-weight:700;
+}
+.log-sum-divider{
+  border-top:1px dashed var(--mint-dk);margin:8px 0;
 }
 .log-session-card{
   background:var(--paper);border-radius:var(--r-sm);margin:6px 18px;
@@ -3034,11 +3053,15 @@ async function loadLog() {
       const submitted = (s.session_items || []).filter(i => i.is_submitted && !i.is_error);
       ds.total += submitted.length;
       if (submitted.length > 0) {
-        ds.routes.push(`${s.from_location} → ${s.to_location}  ${submitted.length}벌`);
+        // 경로별 카테고리 집계
+        const routeCatMap = {};
         submitted.forEach(i => {
-          const cat = (i.category || '기타').trim() || '기타';
-          ds.catMap[cat] = (ds.catMap[cat] || 0) + 1;
+          const raw = (i.category || '기타').trim() || '기타';
+          const cat = raw.replace(/[a-zA-Z]+/g, m => m.toUpperCase());
+          routeCatMap[cat] = (routeCatMap[cat] || 0) + 1;
+          ds.catMap[cat]   = (ds.catMap[cat]   || 0) + 1;
         });
+        ds.routes.push({ from: s.from_location, to: s.to_location, count: submitted.length, catMap: routeCatMap });
       }
     });
 
@@ -3061,15 +3084,21 @@ async function loadLog() {
 
       const ds = dateSummary[date];
       if (ds && ds.total > 0) {
-        const catLine = Object.entries(ds.catMap)
+        const fmtCats = (catMap) => Object.entries(catMap)
           .sort((a, b) => b[1] - a[1])
-          .slice(0, 6)
-          .map(([cat, cnt]) => `${cat} ${cnt}`)
-          .join('  /  ');
+          .map(([cat, cnt]) => `<span class="log-sum-cat">${cat} <b>${cnt}</b></span>`)
+          .join('');
+        const routeRows = ds.routes.map(r => `
+          <div class="log-sum-route">
+            <div class="log-sum-route-header">
+              <span class="log-sum-route-label">${r.from} → ${r.to}</span>
+              <span class="log-sum-route-count">${r.count}벌</span>
+            </div>
+            <div class="log-sum-cat-row">${fmtCats(r.catMap)}</div>
+          </div>`).join('');
         html += `<div class="log-day-summary">
           <div class="log-day-summary-total">📦 총 ${ds.total}벌 이동완료</div>
-          <div class="log-day-summary-routes">${ds.routes.join('<br>')}</div>
-          ${catLine ? `<div class="log-day-summary-cats">${catLine}</div>` : ''}
+          ${routeRows}
         </div>`;
       }
       list.forEach(s => {
