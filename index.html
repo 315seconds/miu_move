@@ -2951,6 +2951,9 @@ function setLogFilter(type, btn) {
     const today = toDateStr(new Date());
     document.getElementById('log-date-from').value = today;
     document.getElementById('log-date-to').value   = today;
+    document.getElementById('log-list').innerHTML =
+      '<div class="empty"><div class="empty-icon">📅</div><div class="empty-text">날짜를 설정해 주세요</div></div>';
+    document.getElementById('log-sub').textContent = '';
   } else {
     customEl.style.display = 'none';
     loadLog();
@@ -2985,7 +2988,7 @@ async function loadLog() {
   try {
     const { data: sessions } = await app.supabase
       .from('move_sessions')
-      .select('*')
+      .select('*, session_items(session_id, is_submitted, is_error)')
       .gte('session_date', from)
       .lte('session_date', to)
       .order('session_date', { ascending: false })
@@ -2996,18 +2999,14 @@ async function loadLog() {
       return;
     }
 
-    // 세션별 아이템 카운트
-    const ids = sessions.map(s => s.id);
-    const { data: countData } = await app.supabase
-      .from('session_items')
-      .select('session_id, is_submitted, is_error')
-      .in('session_id', ids);
-
+    // 세션별 아이템 카운트 (joined query로 URL 길이 제한 우회)
     const countMap = {};
-    (countData || []).forEach(i => {
-      if (!countMap[i.session_id]) countMap[i.session_id] = { total: 0, submitted: 0 };
-      countMap[i.session_id].total++;
-      if (i.is_submitted && !i.is_error) countMap[i.session_id].submitted++;
+    (sessions || []).forEach(s => {
+      const items = s.session_items || [];
+      countMap[s.id] = {
+        total:     items.length,
+        submitted: items.filter(i => i.is_submitted && !i.is_error).length,
+      };
     });
 
     logState.sessions = sessions;
