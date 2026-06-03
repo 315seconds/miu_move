@@ -185,6 +185,9 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
 .btn-ghost{background:transparent;color:var(--ink-3);box-shadow:none}
 .btn-ghost:hover{background:var(--paper);color:var(--ink);box-shadow:var(--shadow-soft)}
 .btn-sm{padding:10px 18px;font-size:12px;width:auto}
+.lookup-tabs{display:flex;gap:6px;margin-bottom:18px;background:var(--cream-2);border-radius:var(--r-sm);padding:4px}
+.lookup-tab{flex:1;padding:8px;border:none;border-radius:calc(var(--r-sm) - 2px);background:transparent;font-family:var(--font-ui);font-size:13px;font-weight:600;color:var(--ink-3);cursor:pointer;transition:all .15s}
+.lookup-tab.active{background:var(--paper);color:var(--purple);box-shadow:var(--shadow-soft)}
 .btn-icon{width:42px;height:42px;padding:0;border-radius:var(--r-pill)}
 .btn+.btn{margin-top:10px}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:grayscale(.4)}
@@ -1244,14 +1247,29 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
   <div class="content">
     <h1 class="page-title">어디 <em>있었죠?</em></h1>
     <p class="page-desc">바코드로 이 상품의 이동 이력을 확인해요.</p>
-    <div class="form-group">
-      <label class="form-label">바코드</label>
-      <div style="display:flex;gap:8px">
-        <input class="form-input" id="lookup-input" placeholder="스캔 또는 입력..." style="flex:1;font-family:var(--font-mono)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <button class="btn btn-primary btn-sm" onclick="doLookup()" style="width:72px">조회</button>
-      </div>
+    <div class="lookup-tabs">
+      <button class="lookup-tab active" id="lookup-tab-single" onclick="switchLookupTab('single')">단일</button>
+      <button class="lookup-tab" id="lookup-tab-multi" onclick="switchLookupTab('multi')">여러 개</button>
     </div>
-    <div id="lookup-result"></div>
+    <div id="lookup-panel-single">
+      <div class="form-group">
+        <label class="form-label">바코드</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="lookup-input" placeholder="스캔 또는 입력..." style="flex:1;font-family:var(--font-mono)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="btn btn-primary btn-sm" onclick="doLookup()" style="width:72px">조회</button>
+        </div>
+      </div>
+      <div id="lookup-result"></div>
+    </div>
+    <div id="lookup-panel-multi" style="display:none">
+      <div class="form-group">
+        <label class="form-label">바코드 목록</label>
+        <textarea class="form-input" id="lookup-multi-input" rows="6" placeholder="바코드를 입력하세요&#10;쉼표, 줄바꿈 모두 가능&#10;&#10;예) C02941, C38371&#10;C37171" style="font-family:var(--font-mono);font-size:13px;resize:none"></textarea>
+        <div style="font-size:12px;color:var(--ink-3);margin-top:6px">엑셀에서 바코드 열 복사 후 붙여넣기</div>
+      </div>
+      <button class="btn btn-primary" onclick="doLookupMulti()" id="lookup-multi-btn" style="width:100%"><span>최종 위치 조회 →</span></button>
+      <div id="lookup-multi-result" style="margin-top:16px"></div>
+    </div>
   </div>
 </div>
 
@@ -3277,6 +3295,105 @@ async function downloadLogExcel() {
 // ══════════════════════════════════════════
 //  LOOKUP
 // ══════════════════════════════════════════
+function switchLookupTab(mode) {
+  const isSingle = mode === 'single';
+  document.getElementById('lookup-tab-single').classList.toggle('active', isSingle);
+  document.getElementById('lookup-tab-multi').classList.toggle('active', !isSingle);
+  document.getElementById('lookup-panel-single').style.display = isSingle ? '' : 'none';
+  document.getElementById('lookup-panel-multi').style.display = isSingle ? 'none' : '';
+}
+
+async function doLookupMulti() {
+  if (!requireSupabase()) return;
+  const raw = document.getElementById('lookup-multi-input').value;
+  if (!raw.trim()) return;
+
+  const barcodes = [...new Set(
+    raw.split(/[\n,\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean)
+  )];
+  if (barcodes.length === 0) return;
+
+  const btn = document.getElementById('lookup-multi-btn');
+  const resultEl = document.getElementById('lookup-multi-result');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0 auto"></div>';
+  resultEl.innerHTML = '<div class="loading"><div class="spinner"></div>조회 중...</div>';
+
+  try {
+    // 이동 기록: 바코드 목록 한 번에 조회
+    const { data: items } = await app.supabase
+      .from('session_items')
+      .select('barcode, scanned_at, product_name, move_sessions(to_location, status)')
+      .in('barcode', barcodes)
+      .eq('is_submitted', true)
+      .eq('is_error', false);
+
+    // 판매 기록: 바코드 목록 한 번에 조회
+    const { data: soldItems } = await app.supabase
+      .from('sold_items')
+      .select('barcode, sold_date, store')
+      .in('barcode', barcodes)
+      .order('sold_date', { ascending: false });
+
+    // 바코드별 최신 이동 기록 (scanned_at 기준)
+    const latestMove = {};
+    (items || []).forEach(item => {
+      const bc = (item.barcode || '').toUpperCase();
+      if (!latestMove[bc] || item.scanned_at > latestMove[bc].scanned_at) {
+        latestMove[bc] = item;
+      }
+    });
+
+    // 바코드별 판매 기록 (첫 번째 = 최신)
+    const soldMap = {};
+    (soldItems || []).forEach(item => {
+      const bc = (item.barcode || '').toUpperCase();
+      if (!soldMap[bc]) soldMap[bc] = item;
+    });
+
+    // 결과 렌더링
+    const rows = barcodes.map(bc => {
+      const move = latestMove[bc];
+      const sold = soldMap[bc];
+      const location = move?.move_sessions?.to_location || null;
+      const isPending = move?.move_sessions?.status === 'pending';
+      let locationHtml;
+      if (sold) {
+        locationHtml = `<span style="color:var(--ok);font-weight:700">판매됨</span>`;
+      } else if (location) {
+        locationHtml = `<span style="color:var(--purple);font-weight:700">${location}${isPending ? ' <span style="color:var(--accent);font-size:11px">(대기중)</span>' : ''}</span>`;
+      } else {
+        locationHtml = `<span style="color:var(--ink-3)">기록 없음</span>`;
+      }
+      const soldBadge = sold
+        ? `<span style="font-size:11px;color:var(--ok)">${sold.sold_date || ''} ${sold.store || ''}</span>`
+        : '';
+      return `<div class="card-row" style="flex-direction:column;align-items:flex-start;gap:4px;padding:12px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-2)">${bc}</span>
+          ${locationHtml}
+        </div>
+        ${move?.product_name ? `<span style="font-size:12px;color:var(--ink-3)">${move.product_name}</span>` : ''}
+        ${soldBadge}
+      </div>`;
+    }).join('');
+
+    const found = barcodes.filter(bc => latestMove[bc] || soldMap[bc]).length;
+    resultEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 class="section-title" style="margin:0">조회 결과</h2>
+        <span style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono)">${found}/${barcodes.length}건</span>
+      </div>
+      <div class="card">${rows}</div>
+    `;
+  } catch(e) {
+    resultEl.innerHTML = `<div style="color:var(--danger);padding:16px;font-size:14px">오류: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>최종 위치 조회 →</span>';
+  }
+}
+
 async function doLookup() {
   const raw = document.getElementById('lookup-input').value.trim();
   if (!raw) return;
@@ -3651,3 +3768,4 @@ document.head.appendChild(styleEl);
 </script>
 </body>
 </html>
+
