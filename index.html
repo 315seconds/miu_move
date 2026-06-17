@@ -462,6 +462,21 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
 .scan-item.error{background:var(--coral-bg)}
 .scan-item.error .scan-item-name{color:var(--err)}
 
+/* ── BATCH DIVIDER ── */
+.batch-divider{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;margin:10px 0 6px;
+  background:var(--cream-2);border-radius:var(--r-sm);
+  font-family:var(--font-mono);font-size:11px;font-weight:700;
+  color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;
+  cursor:pointer;user-select:none;
+}
+.batch-divider.curr{
+  background:var(--purple-bg);color:var(--purple);cursor:default;
+}
+.batch-chevron{display:inline-block;transition:transform .2s}
+.prev-batch-items.collapsed{display:none}
+
 /* ── HISTORY / LOOKUP ── */
 .history-item{display:flex;gap:14px;padding:14px 0}
 .history-line{width:3px;background:var(--cream-3);border-radius:2px;flex-shrink:0;margin:6px 0;position:relative}
@@ -1021,7 +1036,7 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
       </div>
       <div class="scan-counter-cell">
         <div class="scan-count" id="scan-count-mine">0</div>
-        <div class="scan-count-label">내 것</div>
+        <div class="scan-count-label">이번</div>
       </div>
       <div class="scan-counter-cell">
         <div class="scan-count" id="scan-count-hanger">0</div>
@@ -1378,6 +1393,8 @@ const app = {
   scanTo: '',
   currentSession: null,
   hangerCount: 0,      // 현재 행거 스캔 수 (행거 완료 시 리셋)
+  scanJoinTime: null,  // 세션 입장 시각 (이전/이번 배송 구분 기준)
+  currBatchItems: [],  // 이번 입장 후 스캔된 아이템
   excelWorkbook: null,
   excelBarcodeMap: null, // {barcode: rowIndex}
   excelFilePath: '',
@@ -2102,9 +2119,13 @@ async function createNewSession() {
 
 async function enterScanningScreen() {
   app.scannedItems = [];
+  app.currBatchItems = [];
   app.hangerCount = 0;
   app.scanFilter = 'all';
-  document.getElementById('scan-list').innerHTML = '';
+  app.scanJoinTime = new Date().toISOString();
+
+  const list = document.getElementById('scan-list');
+  list.innerHTML = '';
   document.getElementById('scan-count').textContent = '0';
   document.getElementById('scanning-title').textContent = `${app.scanFrom} → ${app.scanTo}`;
   document.getElementById('scanning-sub').textContent = app.scanUser;
@@ -2113,11 +2134,34 @@ async function enterScanningScreen() {
   // 기존 항목 먼저 로드 (구독보다 먼저 — 중복 방지)
   const { data } = await app.supabase.from('session_items')
     .select('*').eq('session_id', app.currentSession.id).order('scanned_at', { ascending: true });
-  if (data) {
+
+  if (data && data.length > 0) {
+    // 이전 배송 섹션 (기존 아이템이 있을 때만 생성)
+    const prevSection = document.createElement('div');
+    prevSection.id = 'prev-batch-section';
+    prevSection.innerHTML = `
+      <div class="batch-divider" onclick="togglePrevBatch(this)">
+        <span>이전 배송 · ${data.length}벌</span>
+        <span class="batch-chevron">▼</span>
+      </div>
+      <div id="prev-batch-items" class="prev-batch-items"></div>
+    `;
+    list.appendChild(prevSection);
+
     data.forEach(item => {
       if (item.scanned_by === app.scanUser) app.scannedItems.push(item);
       addItemToUI(item, false);
     });
+
+    // 이번 배송 헤더 + 컨테이너를 맨 위에 삽입
+    const currItems = document.createElement('div');
+    currItems.id = 'curr-batch-items';
+    const currHeader = document.createElement('div');
+    currHeader.id = 'curr-batch-header';
+    currHeader.className = 'batch-divider curr';
+    currHeader.textContent = '이번 배송 · 0벌';
+    list.insertBefore(currItems, list.firstChild);
+    list.insertBefore(currHeader, list.firstChild);
   }
 
   // 실시간 구독 (초기 로드 이후에 구독 — INSERT/DELETE 모두)
@@ -2130,8 +2174,9 @@ async function enterScanningScreen() {
       if (document.getElementById(`item-${payload.new.id}`)) return;
       if (payload.new.scanned_by === app.scanUser) {
         app.scannedItems.push(payload.new);
+        app.currBatchItems.push(payload.new);
       }
-      addItemToUI(payload.new, payload.new.scanned_by === app.scanUser);
+      addItemToUI(payload.new, true);
       updateSessionMemberCount();
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'session_items' },
@@ -2140,7 +2185,8 @@ async function enterScanningScreen() {
       const el = document.getElementById(`item-${payload.old.id}`);
       if (el) {
         el.remove();
-        app.scannedItems = app.scannedItems.filter(i => i.id !== payload.old.id);
+        app.scannedItems     = app.scannedItems.filter(i => i.id !== payload.old.id);
+        app.currBatchItems   = app.currBatchItems.filter(i => i.id !== payload.old.id);
         updateScanCount();
         updateSessionMemberCount();
       }
@@ -2148,6 +2194,16 @@ async function enterScanningScreen() {
     .subscribe();
 
   showScreen('s-scanning');
+}
+
+function togglePrevBatch(divEl) {
+  const items   = document.getElementById('prev-batch-items');
+  const chevron = divEl.querySelector('.batch-chevron');
+  if (items.classList.toggle('collapsed')) {
+    chevron.style.transform = 'rotate(-90deg)';
+  } else {
+    chevron.style.transform = '';
+  }
 }
 
 function focusBarcodeInput() {
@@ -2200,8 +2256,7 @@ function setScanFilter(filter) {
   document.getElementById('filter-btn-mine').style.color      = filter === 'mine' ? '#fff' : '';
 
   // 리스트 항목 표시/숨김
-  const list = document.getElementById('scan-list');
-  Array.from(list.children).forEach(el => {
+  document.querySelectorAll('#scan-list .scan-item').forEach(el => {
     const ismine = el.dataset.scannedBy === app.scanUser;
     el.style.display = (filter === 'mine' && !ismine) ? 'none' : '';
   });
@@ -2213,8 +2268,7 @@ async function processBarcode(input) {
   if (!barcode) return;
 
   // 세션 전체 기준 중복 체크 (내가 찍은 것 + 다른 사람이 찍은 것 모두)
-  const allItems = Array.from(document.getElementById('scan-list').children);
-  const isDup = allItems.some(el => el.dataset.barcode?.toUpperCase() === barcode.toUpperCase());
+  const isDup = !!document.querySelector(`#scan-list [data-barcode="${barcode}"]`);
   if (isDup) {
     showToast(`이미 스캔된 바코드예요: ${barcode}`, 'error');
     return;
@@ -2256,6 +2310,7 @@ async function processBarcode(input) {
 
   if (data) {
     app.scannedItems.unshift(data);
+    app.currBatchItems.unshift(data);
     if (!data.is_error) app.hangerCount++;
     addItemToUI(data, true);
     updateScanCount();
@@ -2270,12 +2325,11 @@ function showErrorToast(barcode) {
 
 function addItemToUI(item, prepend = true) {
   const list = document.getElementById('scan-list');
-  const count = list.children.length + 1;
   const div = document.createElement('div');
   div.className = `scan-item${item.is_error ? ' error' : ''}`;
   div.id = `item-${item.id}`;
-  div.dataset.barcode    = item.barcode;
-  div.dataset.scannedBy  = item.scanned_by;
+  div.dataset.barcode   = item.barcode;
+  div.dataset.scannedBy = item.scanned_by;
 
   // 필터 적용
   if (app.scanFilter === 'mine' && item.scanned_by !== app.scanUser) {
@@ -2283,7 +2337,7 @@ function addItemToUI(item, prepend = true) {
   }
 
   div.innerHTML = `
-    <div class="scan-item-num">${prepend ? '' : count}</div>
+    <div class="scan-item-num"></div>
     <div class="scan-item-info">
       <div class="scan-item-name">${item.is_error ? `⚠ ${item.barcode}` : (item.product_name || item.barcode)}</div>
       <div class="scan-item-barcode">${item.barcode}${item.category ? ` · ${item.category}` : ''}${item.price ? ` · ${item.price}` : ''}</div>
@@ -2292,8 +2346,21 @@ function addItemToUI(item, prepend = true) {
     <div class="scan-item-by">${item.scanned_by}</div>
     ${item.scanned_by === app.scanUser ? `<button class="scan-item-remove" onclick="removeItem('${item.id}')">✕</button>` : ''}
   `;
-  if (prepend && list.firstChild) list.insertBefore(div, list.firstChild);
-  else list.appendChild(div);
+
+  const currContainer = document.getElementById('curr-batch-items');
+  const prevContainer = document.getElementById('prev-batch-items');
+
+  if (!prepend && prevContainer) {
+    // 초기 로드 아이템 → 이전 배송 섹션
+    prevContainer.appendChild(div);
+  } else if (prepend && currContainer) {
+    // 새 스캔 아이템 → 이번 배송 섹션 맨 위
+    currContainer.insertBefore(div, currContainer.firstChild);
+  } else if (prepend && list.firstChild) {
+    list.insertBefore(div, list.firstChild);
+  } else {
+    list.appendChild(div);
+  }
   updateScanCount();
 }
 
@@ -2317,18 +2384,26 @@ async function removeItem(itemId) {
   const item = app.scannedItems.find(i => i.id === itemId);
   await app.supabase.from('session_items').delete().eq('id', itemId);
   document.getElementById(`item-${itemId}`)?.remove();
-  app.scannedItems = app.scannedItems.filter(i => i.id !== itemId);
+  app.scannedItems   = app.scannedItems.filter(i => i.id !== itemId);
+  app.currBatchItems = app.currBatchItems.filter(i => i.id !== itemId);
   // 행거 카운터에서도 차감 (0 이하로 내려가지 않도록)
   if (item && !item.is_error) app.hangerCount = Math.max(0, app.hangerCount - 1);
   updateScanCount();
 }
 
 function updateScanCount() {
-  const total = document.getElementById('scan-list').children.length;
-  const mine  = app.scannedItems.length;
+  const total      = document.querySelectorAll('#scan-list .scan-item').length;
+  const currContainer = document.getElementById('curr-batch-items');
+  const currCount  = currContainer
+    ? currContainer.querySelectorAll('.scan-item').length
+    : app.scannedItems.length;
+
   document.getElementById('scan-count').textContent        = total;
-  document.getElementById('scan-count-mine').textContent   = mine;
+  document.getElementById('scan-count-mine').textContent   = currCount;
   document.getElementById('scan-count-hanger').textContent = app.hangerCount;
+
+  const currHeader = document.getElementById('curr-batch-header');
+  if (currHeader) currHeader.textContent = `이번 배송 · ${currCount}벌`;
 }
 
 async function updateSessionMemberCount() {
