@@ -1008,12 +1008,13 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
 <div class="screen" id="s-session-confirm">
   <div class="topbar">
     <div class="topbar-back" onclick="goBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
-    <div><div class="topbar-title">기존 세션 발견</div></div>
+    <div><div class="topbar-title">같은 경로 세션 있음</div></div>
   </div>
   <div class="content">
-    <div class="callout" style="margin-bottom:20px">오늘 같은 이동 세션이 있어요. 합류해서 함께 스캔할 수 있어요.</div>
+    <div class="callout" style="margin-bottom:20px">오늘 같은 이동 경로의 세션이 있어요. 합류하거나, 새 배송으로 별도 세션을 만들 수 있어요.</div>
     <div class="card" id="existing-session-info" style="margin-bottom:20px"></div>
-    <button class="btn btn-primary" onclick="joinExistingSession()">이 세션에 합류하기</button>
+    <button class="btn btn-primary" onclick="joinExistingSession()">기존 세션에 합류하기</button>
+    <button class="btn btn-secondary" onclick="createNewSession()">새 배송으로 시작하기</button>
     <button class="btn btn-ghost" onclick="goBack()">돌아가기</button>
   </div>
 </div>
