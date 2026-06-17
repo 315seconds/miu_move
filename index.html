@@ -1036,7 +1036,10 @@ p.page-desc{font-size:15px;color:var(--ink-2);line-height:1.55;margin-bottom:24p
         <button onclick="setScanFilter('all')" id="filter-btn-all" class="loc-btn" style="font-size:10px;padding:4px 10px;background:var(--purple);color:#fff">전체</button>
         <button onclick="setScanFilter('mine')" id="filter-btn-mine" class="loc-btn" style="font-size:10px;padding:4px 10px">내 것만</button>
       </div>
-      <button onclick="completeHanger()" class="loc-btn" style="margin-top:4px">✓ 행거 완료</button>
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <button onclick="completeHanger()" class="loc-btn" style="flex:1">✓ 행거 완료</button>
+        <button onclick="deleteCurrentHanger()" class="loc-btn" style="flex:1;color:var(--err)">✕ 행거 삭제</button>
+      </div>
     </div>
   </div>
   <div class="scan-input-area">
@@ -1379,6 +1382,7 @@ const app = {
   scanTo: '',
   currentSession: null,
   hangerCount: 0,      // 현재 행거 스캔 수 (행거 완료 시 리셋)
+  currentHangerItemIds: [],  // 현재 행거에 속한 아이템 ID 목록
   excelWorkbook: null,
   excelBarcodeMap: null, // {barcode: rowIndex}
   excelFilePath: '',
@@ -2106,6 +2110,7 @@ async function createNewSession() {
 async function enterScanningScreen() {
   app.scannedItems = [];
   app.hangerCount = 0;
+  app.currentHangerItemIds = [];
   app.scanFilter = 'all';
 
   const list = document.getElementById('scan-list');
@@ -2145,6 +2150,7 @@ async function enterScanningScreen() {
       if (el) {
         el.remove();
         app.scannedItems = app.scannedItems.filter(i => i.id !== payload.old.id);
+        app.currentHangerItemIds = app.currentHangerItemIds.filter(id => id !== payload.old.id);
         updateScanCount();
         updateSessionMemberCount();
       }
@@ -2259,7 +2265,10 @@ async function processBarcode(input) {
 
   if (data) {
     app.scannedItems.unshift(data);
-    if (!data.is_error) app.hangerCount++;
+    if (!data.is_error) {
+      app.hangerCount++;
+      app.currentHangerItemIds.push(data.id);
+    }
     addItemToUI(data, true);
     updateScanCount();
   }
@@ -2315,8 +2324,34 @@ function completeHanger() {
   if (app.hangerCount === 0) { showToast('아직 찍은 물건이 없어요', 'error'); return; }
   const count = app.hangerCount;
   app.hangerCount = 0;
+  app.currentHangerItemIds = [];
   updateScanCount();
   showToast(`행거 완료 ✓  ${count}벌 확인`, 'success');
+}
+
+async function deleteCurrentHanger() {
+  if (app.hangerCount === 0) { showToast('현재 행거에 찍은 물건이 없어요', 'error'); return; }
+  const count = app.hangerCount;
+  const idsToDelete = [...app.currentHangerItemIds];
+  showModal(
+    `현재 행거 삭제`,
+    `지금 행거에 찍은 ${count}벌을 모두 삭제할까요?\n되돌릴 수 없어요.`,
+    [
+      { label: '삭제', class: 'btn-danger', fn: async () => {
+        closeModal();
+        await app.supabase.from('session_items').delete().in('id', idsToDelete);
+        idsToDelete.forEach(id => {
+          document.getElementById(`item-${id}`)?.remove();
+          app.scannedItems = app.scannedItems.filter(i => i.id !== id);
+        });
+        app.hangerCount = 0;
+        app.currentHangerItemIds = [];
+        updateScanCount();
+        showToast(`행거 ${count}벌 삭제됨`, 'success');
+      }},
+      { label: '취소', class: 'btn-ghost', fn: closeModal },
+    ]
+  );
 }
 
 async function removeItem(itemId) {
@@ -2324,6 +2359,7 @@ async function removeItem(itemId) {
   await app.supabase.from('session_items').delete().eq('id', itemId);
   document.getElementById(`item-${itemId}`)?.remove();
   app.scannedItems = app.scannedItems.filter(i => i.id !== itemId);
+  app.currentHangerItemIds = app.currentHangerItemIds.filter(id => id !== itemId);
   // 행거 카운터에서도 차감 (0 이하로 내려가지 않도록)
   if (item && !item.is_error) app.hangerCount = Math.max(0, app.hangerCount - 1);
   updateScanCount();
