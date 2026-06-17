@@ -2080,7 +2080,9 @@ async function submitScanInfo() {
       .eq('from_location', from)
       .eq('to_location', to)
       .eq('status', 'pending')
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (data) {
       // Show join confirm
@@ -2269,7 +2271,8 @@ async function processBarcode(input) {
   if (!barcode) return;
 
   // 세션 전체 기준 중복 체크 (내가 찍은 것 + 다른 사람이 찍은 것 모두)
-  const isDup = !!document.querySelector(`#scan-list [data-barcode="${barcode}"]`);
+  const isDup = Array.from(document.querySelectorAll('#scan-list .scan-item'))
+    .some(el => el.dataset.barcode?.toUpperCase() === barcode);
   if (isDup) {
     showToast(`이미 스캔된 바코드예요: ${barcode}`, 'error');
     return;
@@ -2396,7 +2399,8 @@ function updateScanCount() {
   const total      = document.querySelectorAll('#scan-list .scan-item').length;
   const currContainer = document.getElementById('curr-batch-items');
   const currCount  = currContainer
-    ? currContainer.querySelectorAll('.scan-item').length
+    ? Array.from(currContainer.querySelectorAll('.scan-item'))
+        .filter(el => el.dataset.scannedBy === app.scanUser).length
     : app.scannedItems.length;
 
   document.getElementById('scan-count').textContent        = total;
