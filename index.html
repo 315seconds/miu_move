@@ -1383,6 +1383,7 @@ const app = {
   currentSession: null,
   hangerCount: 0,      // 현재 행거 스캔 수 (행거 완료 시 리셋)
   currentHangerItemIds: [],  // 현재 행거에 속한 아이템 ID 목록
+  cancelledTempIds: new Set(), // 낙관적 삽입 취소된 temp ID 목록
   excelWorkbook: null,
   excelBarcodeMap: null, // {barcode: rowIndex}
   excelFilePath: '',
@@ -2111,6 +2112,7 @@ async function enterScanningScreen() {
   app.scannedItems = [];
   app.hangerCount = 0;
   app.currentHangerItemIds = [];
+  app.cancelledTempIds = new Set();
   app.scanFilter = 'all';
 
   const list = document.getElementById('scan-list');
@@ -2250,8 +2252,22 @@ async function processBarcode(input) {
     showErrorToast(barcode);
   }
 
-  // Save to Supabase
-  const { data } = await app.supabase.from('session_items').insert({
+  // 낙관적 업데이트: DB 응답 전에 temp ID로 즉시 UI 반영
+  const tempId = `temp-${Date.now()}`;
+  const tempItem = { id: tempId, barcode, scanned_by: app.scanUser,
+    product_name: item.product_name, category: item.category,
+    price: item.price, current_location: item.current_location,
+    is_error: item.is_error, error_msg: item.error_msg || null };
+  app.scannedItems.unshift(tempItem);
+  if (!tempItem.is_error) {
+    app.hangerCount++;
+    app.currentHangerItemIds.push(tempId);
+  }
+  addItemToUI(tempItem, true);
+  updateScanCount();
+
+  // 백그라운드 DB 삽입
+  app.supabase.from('session_items').insert({
     session_id: app.currentSession.id,
     barcode: item.barcode,
     product_name: item.product_name,
@@ -2261,17 +2277,34 @@ async function processBarcode(input) {
     scanned_by: app.scanUser,
     is_error: item.is_error,
     error_msg: item.error_msg || null,
-  }).select().single();
-
-  if (data) {
-    app.scannedItems.unshift(data);
-    if (!data.is_error) {
-      app.hangerCount++;
-      app.currentHangerItemIds.push(data.id);
+  }).select().single().then(({ data, error }) => {
+    if (error || !data) {
+      // 실패: UI 롤백
+      document.getElementById(`item-${tempId}`)?.remove();
+      app.scannedItems = app.scannedItems.filter(i => i.id !== tempId);
+      app.currentHangerItemIds = app.currentHangerItemIds.filter(id => id !== tempId);
+      if (!tempItem.is_error) app.hangerCount = Math.max(0, app.hangerCount - 1);
+      updateScanCount();
+      showToast(`저장 실패: ${barcode}`, 'error');
+      return;
     }
-    addItemToUI(data, true);
-    updateScanCount();
-  }
+    // 삽입 중 사용자가 취소(삭제)한 경우 → DB row 즉시 제거
+    if (app.cancelledTempIds.has(tempId)) {
+      app.cancelledTempIds.delete(tempId);
+      app.supabase.from('session_items').delete().eq('id', data.id);
+      return;
+    }
+    // 성공: temp ID → 실제 ID 교체
+    const el = document.getElementById(`item-${tempId}`);
+    if (el) {
+      el.id = `item-${data.id}`;
+      el.querySelector('.scan-item-remove')?.setAttribute('onclick', `removeItem('${data.id}')`);
+    }
+    const si = app.scannedItems.findIndex(i => i.id === tempId);
+    if (si !== -1) app.scannedItems[si] = data;
+    const hi = app.currentHangerItemIds.indexOf(tempId);
+    if (hi !== -1) app.currentHangerItemIds[hi] = data.id;
+  });
 }
 
 function showErrorToast(barcode) {
@@ -2339,7 +2372,10 @@ async function deleteCurrentHanger() {
     [
       { label: '삭제', class: 'btn-danger', fn: async () => {
         closeModal();
-        await app.supabase.from('session_items').delete().in('id', idsToDelete);
+        const realIds = idsToDelete.filter(id => !String(id).startsWith('temp-'));
+        const tempIds = idsToDelete.filter(id => String(id).startsWith('temp-'));
+        tempIds.forEach(id => app.cancelledTempIds.add(id));
+        if (realIds.length > 0) await app.supabase.from('session_items').delete().in('id', realIds);
         idsToDelete.forEach(id => {
           document.getElementById(`item-${id}`)?.remove();
           app.scannedItems = app.scannedItems.filter(i => i.id !== id);
@@ -2356,13 +2392,17 @@ async function deleteCurrentHanger() {
 
 async function removeItem(itemId) {
   const item = app.scannedItems.find(i => i.id === itemId);
-  await app.supabase.from('session_items').delete().eq('id', itemId);
   document.getElementById(`item-${itemId}`)?.remove();
   app.scannedItems = app.scannedItems.filter(i => i.id !== itemId);
   app.currentHangerItemIds = app.currentHangerItemIds.filter(id => id !== itemId);
-  // 행거 카운터에서도 차감 (0 이하로 내려가지 않도록)
   if (item && !item.is_error) app.hangerCount = Math.max(0, app.hangerCount - 1);
   updateScanCount();
+  if (String(itemId).startsWith('temp-')) {
+    // 아직 DB에 없음 — .then() 성공 시 cancelledTempIds 보고 삭제 처리
+    app.cancelledTempIds.add(itemId);
+  } else {
+    await app.supabase.from('session_items').delete().eq('id', itemId);
+  }
 }
 
 function updateScanCount() {
