@@ -3502,7 +3502,7 @@ async function doLookup() {
         const hanger  = invItem.inventory_hangers || {};
         const isession = hanger.inventory_sessions || {};
         ingestInfo = {
-          location:     isession.location || null,
+          location:     isession.location || invItem.location || null,
           session_date: isession.session_date || invItem.created_at || null,
           by:           hanger.submitted_by || isession.created_by || null,
         };
