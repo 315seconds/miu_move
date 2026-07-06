@@ -3489,10 +3489,29 @@ async function doLookup() {
       .ilike('barcode', barcode)
       .order('scanned_at', { ascending: false });
 
+    // 최초 입고 정보 (신규입고앱 데이터, 다른 프로젝트 테이블이라 없을 수 있음)
+    let ingestInfo = null;
+    try {
+      const { data: invRows } = await app.supabase
+        .from('inventory_items')
+        .select('*, inventory_hangers(submitted_by, inventory_sessions(location, session_date, created_by))')
+        .ilike('barcode', barcode)
+        .limit(1);
+      const invItem = invRows?.[0];
+      if (invItem) {
+        const hanger  = invItem.inventory_hangers || {};
+        const isession = hanger.inventory_sessions || {};
+        ingestInfo = {
+          location:     isession.location || null,
+          session_date: isession.session_date || invItem.created_at || null,
+          by:           hanger.submitted_by || isession.created_by || null,
+        };
+      }
+    } catch(e) { /* inventory_items 테이블 없으면 무시 */ }
+
     if (!data || data.length === 0) {
-      // 이동 기록 없어도 판매 여부 확인
-      let noHistorySold = false;
-      let noHistorySoldInfo = null;
+      // 이동 기록 없어도 판매/입고 여부 확인
+      let soldInfo = null;
       try {
         const { data: soldData } = await app.supabase
           .from('sold_items')
@@ -3500,27 +3519,45 @@ async function doLookup() {
           .ilike('barcode', barcode)
           .order('sold_date', { ascending: false })
           .limit(1);
-        if (soldData && soldData.length > 0) {
-          noHistorySold = true;
-          noHistorySoldInfo = soldData[0];
-        }
+        if (soldData && soldData.length > 0) soldInfo = soldData[0];
       } catch(e) {}
 
-      if (noHistorySold) {
-        el.innerHTML = `
-          <div class="card" style="margin-bottom:16px">
-            <div class="card-row"><span class="card-row-label">바코드</span><span class="card-row-value" style="font-family:var(--font-mono)">${barcode}</span></div>
-            <div class="card-row"><span class="card-row-label">상품명</span><span class="card-row-value">${noHistorySoldInfo?.product_name || '-'}</span></div>
-            <div class="card-row"><span class="card-row-label">현재 위치</span><span class="card-row-value" style="color:var(--ok)">판매됨</span></div>
-            <div class="card-row"><span class="card-row-label">판매 상태</span><span class="card-row-value" style="color:var(--ok);font-weight:800">✅ 판매 완료</span></div>
-            <div class="card-row"><span class="card-row-label">판매일</span><span class="card-row-value">${noHistorySoldInfo?.sold_date || '-'}</span></div>
-            <div class="card-row"><span class="card-row-label">판매 매장</span><span class="card-row-value">${noHistorySoldInfo?.store || '-'}</span></div>
-          </div>
-          <div class="empty" style="margin-top:16px"><div class="empty-icon">📦</div><div class="empty-text">이동 기록 없음<br>앱 도입 이전 판매된 물건이에요</div></div>
-        `;
-      } else {
-        el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">이동 기록이 없어요<br>${barcode}</div></div>`;
+      if (!ingestInfo && !soldInfo) {
+        el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">기록이 없어요<br>${barcode}</div></div>`;
+        return;
       }
+
+      const currentLoc = soldInfo ? '판매됨' : (ingestInfo?.location || '?');
+      el.innerHTML = `
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-row"><span class="card-row-label">바코드</span><span class="card-row-value" style="font-family:var(--font-mono)">${barcode}</span></div>
+          ${soldInfo?.product_name ? `<div class="card-row"><span class="card-row-label">상품명</span><span class="card-row-value">${soldInfo.product_name}</span></div>` : ''}
+          <div class="card-row"><span class="card-row-label">현재 위치</span><span class="card-row-value" style="color:${soldInfo ? 'var(--ok)' : 'var(--purple)'}">${currentLoc}</span></div>
+          ${soldInfo ? `
+            <div class="card-row"><span class="card-row-label">판매 상태</span><span class="card-row-value" style="color:var(--ok);font-weight:800">✅ 판매 완료</span></div>
+            <div class="card-row"><span class="card-row-label">판매일</span><span class="card-row-value">${soldInfo.sold_date || '-'}</span></div>
+            <div class="card-row"><span class="card-row-label">판매 매장</span><span class="card-row-value">${soldInfo.store || '-'}</span></div>
+          ` : `<div class="card-row"><span class="card-row-label">판매 상태</span><span class="card-row-value" style="color:var(--ink-3)">재고 중</span></div>`}
+        </div>
+        <h2 class="section-title">전체 이력</h2>
+        <div class="card"><div class="card-body" style="padding:8px 16px">
+          ${ingestInfo ? `<div class="history-item">
+            <div class="history-line"></div>
+            <div class="history-info">
+              <div class="history-route">📦 최초 입고 · ${ingestInfo.location || '?'}</div>
+              <div class="history-date">${formatDate(ingestInfo.session_date)}</div>
+              <div class="history-who">${ingestInfo.by || '-'} 입고</div>
+            </div>
+          </div>` : `<div class="empty" style="padding:16px 0"><div class="empty-text">이동 기록 없음<br>앱 도입 이전 판매된 물건이에요</div></div>`}
+          ${soldInfo ? `<div class="history-item">
+            <div class="history-line"></div>
+            <div class="history-info">
+              <div class="history-route" style="color:var(--ok);font-weight:700">🛍 판매 완료</div>
+              <div class="history-date">${soldInfo.sold_date || ''} · ${soldInfo.store || ''}</div>
+            </div>
+          </div>` : ''}
+        </div></div>
+      `;
       return;
     }
 
@@ -3558,8 +3595,16 @@ async function doLookup() {
         ${soldBadge}
         <div class="card-row"><span class="card-row-label">이동 횟수</span><span class="card-row-value" style="font-family:var(--font-mono)">${sorted.length}회</span></div>
       </div>
-      <h2 class="section-title">이동 경로</h2>
+      <h2 class="section-title">전체 이력</h2>
       <div class="card"><div class="card-body" style="padding:8px 16px">
+        ${ingestInfo ? `<div class="history-item">
+          <div class="history-line"></div>
+          <div class="history-info">
+            <div class="history-route">📦 최초 입고 · ${ingestInfo.location || '?'}</div>
+            <div class="history-date">${formatDate(ingestInfo.session_date)}</div>
+            <div class="history-who">${ingestInfo.by || '-'} 입고</div>
+          </div>
+        </div>` : ''}
         ${sorted.map((item, i) => {
           const s = item.move_sessions;
           const isLast = i === sorted.length - 1;
