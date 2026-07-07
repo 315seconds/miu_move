@@ -3501,13 +3501,8 @@ async function doLookup() {
       if (invItem) {
         const hanger  = invItem.inventory_hangers || {};
         const isession = hanger.inventory_sessions || {};
-        // hanger 정보가 없으면(엑셀 일괄입고 등) invItem.location은 "현재" 위치라서
-        // 최초 입고 위치로 쓰면 안 됨 → 가장 오래된 이동 기록의 이전 위치로 대체
-        const earliestMove = data && data.length > 0
-          ? [...data].sort((a, b) => new Date(a.scanned_at) - new Date(b.scanned_at))[0]
-          : null;
         ingestInfo = {
-          location:     isession.location || earliestMove?.current_location || earliestMove?.move_sessions?.from_location || (!earliestMove ? invItem.location : null) || null,
+          location:     isession.location || invItem.location || null,
           session_date: isession.session_date || invItem.created_at || null,
           by:           hanger.submitted_by || isession.created_by || null,
         };
@@ -3549,7 +3544,7 @@ async function doLookup() {
           ${ingestInfo ? `<div class="history-item">
             <div class="history-line"></div>
             <div class="history-info">
-              <div class="history-route">📦 최초 입고 · ${ingestInfo.location || '?'}</div>
+              <div class="history-route">📦 최초 입고</div>
               <div class="history-date">${formatDate(ingestInfo.session_date)}</div>
               <div class="history-who">${ingestInfo.by || '-'} 입고</div>
             </div>
@@ -3605,7 +3600,7 @@ async function doLookup() {
         ${ingestInfo ? `<div class="history-item">
           <div class="history-line"></div>
           <div class="history-info">
-            <div class="history-route">📦 최초 입고 · ${ingestInfo.location || '?'}</div>
+            <div class="history-route">📦 최초 입고</div>
             <div class="history-date">${formatDate(ingestInfo.session_date)}</div>
             <div class="history-who">${ingestInfo.by || '-'} 입고</div>
           </div>
